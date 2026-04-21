@@ -181,15 +181,20 @@
 
             const items = jsonData.map(row => {
                 if (type === 'subjects') {
+                    const code = row["รหัสวิชา"] || row["Code"] || "";
+                    const name = row["ชื่อวิชา"] || row["Name"] || "";
+                    if (!code && !name) return null;
+
                     return {
-                        level: row["ระดับชั้น"],
-                        code: row["รหัสวิชา"],
-                        name: row["ชื่อวิชา"],
-                        hours: row["ชั่วโมงต่อสัปดาห์"],
-                        is_double: parseInt(row["คาบคู่(1=มี,0=ไม่มี)"]) === 1
+                        level: row["ระดับชั้น"] || row["Level"] || "",
+                        code: code,
+                        name: name,
+                        hours: row["ชั่วโมงต่อสัปดาห์"] || row["Hours"] || 1,
+                        is_double: (parseInt(row["คาบคู่(1=มี,0=ไม่มี)"] || row["Double"]) === 1)
                     };
                 }
-            });
+                return null;
+            }).filter(item => item !== null);
 
             if (items.length > 0) {
                 const res = await fetch(`api/manage.php?action=bulk_import&type=${type}`, {

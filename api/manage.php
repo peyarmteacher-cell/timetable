@@ -69,14 +69,34 @@ try {
             $pdo->beginTransaction();
             try {
                 if ($type === 'subjects') {
-                    $stmt = $pdo->prepare("INSERT INTO subjects (code, name, level, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?, ?)");
-                    foreach ($items as $item) {
-                        $stmt->execute([$item['code'], $item['name'], $item['level'] ?? '', $item['hours'], $item['is_double'] ? 1 : 0, $school_id]);
+                    try {
+                        $stmt = $pdo->prepare("INSERT INTO subjects (code, name, level, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?, ?)");
+                        foreach ($items as $item) {
+                            $stmt->execute([$item['code'], $item['name'], $item['level'] ?? '', $item['hours'], $item['is_double'] ? 1 : 0, $school_id]);
+                        }
+                    } catch (PDOException $e) {
+                        if ($e->getCode() == '42S22') {
+                            $pdo->exec("ALTER TABLE subjects ADD `level` VARCHAR(20) DEFAULT NULL AFTER `is_double` ");
+                            $stmt = $pdo->prepare("INSERT INTO subjects (code, name, level, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?, ?)");
+                            foreach ($items as $item) {
+                                $stmt->execute([$item['code'], $item['name'], $item['level'] ?? '', $item['hours'], $item['is_double'] ? 1 : 0, $school_id]);
+                            }
+                        } else { throw $e; }
                     }
                 } else if ($type === 'teachers') {
-                    $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
-                    foreach ($items as $item) {
-                        $stmt->execute([$item['name'], $item['position'] ?? '', $school_id]);
+                    try {
+                        $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
+                        foreach ($items as $item) {
+                            $stmt->execute([$item['name'], $item['position'] ?? '', $school_id]);
+                        }
+                    } catch (PDOException $e) {
+                        if ($e->getCode() == '42S22') {
+                            $pdo->exec("ALTER TABLE teachers ADD `position` VARCHAR(255) DEFAULT NULL AFTER `name` ");
+                            $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
+                            foreach ($items as $item) {
+                                $stmt->execute([$item['name'], $item['position'] ?? '', $school_id]);
+                            }
+                        } else { throw $e; }
                     }
                 } else if ($type === 'rooms') {
                     $stmt = $pdo->prepare("INSERT INTO rooms (name, school_id) VALUES (?, ?)");
@@ -272,6 +292,11 @@ try {
                 try {
                     $pdo->exec("ALTER TABLE teachers ADD `position` VARCHAR(255) DEFAULT NULL AFTER `name` ");
                     $details[] = "เพิ่มคอลัมน์ 'position' ในตาราง teachers";
+                } catch (Exception $e) {}
+
+                try {
+                    $pdo->exec("ALTER TABLE subjects ADD `level` VARCHAR(20) DEFAULT NULL AFTER `is_double` ");
+                    $details[] = "เพิ่มคอลัมน์ 'level' ในตาราง subjects";
                 } catch (Exception $e) {}
 
                 try {

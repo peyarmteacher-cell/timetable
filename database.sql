@@ -104,6 +104,7 @@ CREATE TABLE `subjects` (
   `name` varchar(255) NOT NULL,
   `hours_per_week` int(11) NOT NULL DEFAULT 1,
   `is_double` int(1) DEFAULT 0,
+  `level` varchar(20) DEFAULT NULL,
   `school_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `school_id` (`school_id`),

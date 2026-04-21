@@ -80,6 +80,39 @@ switch ($action) {
         jsonResponse(['success' => true]);
         break;
 
+    // DASHBOARD STATS
+    case 'get_stats':
+        $stmt_sub = $pdo->prepare("SELECT COUNT(*) as total FROM subjects WHERE school_id = ?");
+        $stmt_sub->execute([$school_id]);
+        $stmt_tea = $pdo->prepare("SELECT COUNT(*) as total FROM teachers WHERE school_id = ?");
+        $stmt_tea->execute([$school_id]);
+        $stmt_room = $pdo->prepare("SELECT COUNT(*) as total FROM rooms WHERE school_id = ?");
+        $stmt_room->execute([$school_id]);
+        $stmt_cls = $pdo->prepare("SELECT COUNT(*) as total FROM classrooms WHERE school_id = ?");
+        $stmt_cls->execute([$school_id]);
+        
+        jsonResponse([
+            'subjects' => $stmt_sub->fetch()['total'],
+            'teachers' => $stmt_tea->fetch()['total'],
+            'rooms' => $stmt_room->fetch()['total'],
+            'classrooms' => $stmt_cls->fetch()['total']
+        ]);
+        break;
+
+    // SUPER ADMIN - SCHOOLS
+    case 'admin_schools_list':
+        if (!hasRole('super_admin')) jsonResponse(['error' => 'Forbidden'], 403);
+        $stmt = $pdo->prepare("SELECT * FROM schools ORDER BY created_at DESC");
+        $stmt->execute();
+        jsonResponse($stmt->fetchAll());
+        break;
+    case 'admin_school_approve':
+        if (!hasRole('super_admin')) jsonResponse(['error' => 'Forbidden'], 403);
+        $stmt = $pdo->prepare("UPDATE schools SET is_approved = 1 WHERE id = ?");
+        $stmt->execute([$_GET['id']]);
+        jsonResponse(['success' => true]);
+        break;
+
     default:
         jsonResponse(['error' => 'Action not found'], 404);
 }

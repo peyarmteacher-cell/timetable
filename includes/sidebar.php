@@ -11,17 +11,23 @@
 
     <nav class="flex-1 space-y-1">
         <?php $current_page = basename($_SERVER['PHP_SELF']); ?>
-        <a href="dashboard.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'dashboard.php' ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
+        <a href="dashboard.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'dashboard.php' ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
             <i data-lucide="layout-dashboard" size="20"></i> แดชบอร์ด
         </a>
-        <a href="timetable.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'timetable.php' ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
+        <a href="timetable.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'timetable.php' ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
             <i data-lucide="calendar-range" size="20"></i> จัดการตารางสอน
         </a>
-        <a href="#" class="flex items-center gap-3 p-3 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all font-medium">
+        <a href="subjects.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'subjects.php' ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
             <i data-lucide="book-open" size="20"></i> ข้อมูลรายวิชา
         </a>
-        <a href="#" class="flex items-center gap-3 p-3 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all font-medium">
+        <a href="teachers.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'teachers.php' ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
             <i data-lucide="users" size="20"></i> ข้อมูลครู
+        </a>
+        <a href="rooms.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'rooms.php' ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
+            <i data-lucide="door-open" size="20"></i> ห้องเรียน/ห้องปฏิบัติการ
+        </a>
+        <a href="classrooms.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'classrooms.php' ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
+            <i data-lucide="graduation-cap" size="20"></i> ชั้นเรียน
         </a>
     </nav>
 

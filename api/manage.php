@@ -149,6 +149,39 @@ switch ($action) {
         $stmt->execute([$_GET['id']]);
         jsonResponse(['success' => true]);
         break;
+    case 'admin_school_toggle_status':
+        if (!hasRole('super_admin')) jsonResponse(['error' => 'Forbidden'], 403);
+        $stmt = $pdo->prepare("UPDATE schools SET is_approved = 1 - is_approved WHERE id = ?");
+        $stmt->execute([$_GET['id']]);
+        jsonResponse(['success' => true]);
+        break;
+    case 'admin_school_delete':
+        if (!hasRole('super_admin')) jsonResponse(['error' => 'Forbidden'], 403);
+        $pdo->beginTransaction();
+        try {
+            $id = $_GET['id'];
+            // Since we have ON DELETE CASCADE in DB, deleting school will wipe related data
+            $stmt = $pdo->prepare("DELETE FROM schools WHERE id = ?");
+            $stmt->execute([$id]);
+            $pdo->commit();
+            jsonResponse(['success' => true]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            jsonResponse(['error' => $e->getMessage()], 500);
+        }
+        break;
+
+    // SYSTEM SYNC
+    case 'system_sync':
+        try {
+            // Check connection and basic structure
+            $stmt = $pdo->query("SELECT CURRENT_TIMESTAMP");
+            $time = $stmt->fetchColumn();
+            jsonResponse(['success' => true, 'timestamp' => $time, 'db' => $db]);
+        } catch (Exception $e) {
+            jsonResponse(['error' => $e->getMessage()], 500);
+        }
+        break;
 
     default:
         jsonResponse(['error' => 'Action not found'], 404);

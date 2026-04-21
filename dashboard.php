@@ -137,14 +137,15 @@
                 <td class="p-5">
                     ${s.is_approved ? 
                         '<span class="bg-green-100 text-green-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-green-200">อนุมัติแล้ว</span>' : 
-                        '<span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-amber-200">รออนุมัติ</span>'
+                        '<span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-amber-200">ระงับ/รออนุมัติ</span>'
                     }
                 </td>
-                <td class="p-5 text-right">
+                <td class="p-5 text-right flex justify-end gap-2">
                     ${!s.is_approved ? 
-                        `<button onclick="approveSchool(${s.id})" class="bg-blue-600 text-white text-[11px] font-black px-4 py-2 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all active:scale-95">อนุมัติใช้งาน</button>` : 
-                        `<i data-lucide="check-circle-2" class="text-green-500 ml-auto" size="20"></i>`
+                        `<button onclick="approveSchool(${s.id})" class="bg-blue-600 text-white text-[11px] font-black px-3 py-2 rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-95">อนุมัติ</button>` : 
+                        `<button onclick="toggleSchoolStatus(${s.id})" class="bg-amber-500 text-white text-[11px] font-black px-3 py-2 rounded-xl hover:bg-amber-600 shadow-md transition-all active:scale-95">ระงับใช้งาน</button>`
                     }
+                    <button onclick="deleteSchool(${s.id})" class="bg-red-50 text-red-600 text-[11px] font-black px-3 py-2 rounded-xl hover:bg-red-100 shadow-sm transition-all active:scale-95">ลบ</button>
                 </td>
             </tr>
             `;
@@ -152,7 +153,7 @@
 
         if(pendingCount > 0) {
             document.getElementById('pendingBadge').classList.remove('hidden');
-            document.getElementById('pendingBadge').innerText = `${pendingCount} คำขอรออนุมัติ`;
+            document.getElementById('pendingBadge').innerText = `${pendingCount} รายการใหม่`;
         } else {
             document.getElementById('pendingBadge').classList.add('hidden');
         }
@@ -166,8 +167,34 @@
         }
     }
 
-    function updateDb() {
-        alert('ตรวจสอบการซิงโครไนซ์กับ MySQL schoolos_timetable เรียบร้อยแล้ว ข้อมูลเป็นปัจจุบัน');
+    async function toggleSchoolStatus(id) {
+        if(confirm('คุณต้องการระงับการใช้งานของโรงเรียนนี้ชั่วคราวใช่หรือไม่?')) {
+            await fetch(`api/manage.php?action=admin_school_toggle_status&id=${id}`);
+            loadApprovals();
+        }
+    }
+
+    async function deleteSchool(id) {
+        if(confirm('คำเตือน: การลบโรงเรียนจะทำให้ข้อมูลทั้งหมดของโรงเรียนนี้ถูกลบถาวร! ยืนยันข้อมูลหรือไม่?')) {
+            const res = await fetch(`api/manage.php?action=admin_school_delete&id=${id}`);
+            const result = await res.json();
+            if(result.success) loadApprovals();
+            else alert('Error: ' + result.error);
+        }
+    }
+
+    async function updateDb() {
+        try {
+            const res = await fetch('api/manage.php?action=system_sync');
+            const data = await res.json();
+            if(data.success) {
+                alert(`ซิงค์ข้อมูลสำเร็จ!\nเวลาเซิร์ฟเวอร์: ${data.timestamp}\nเชื่อมต่อฐานข้อมูล: ${data.db}`);
+            } else {
+                alert('การซิงค์ล้มเหลว: ' + data.error);
+            }
+        } catch (e) {
+            alert('ไม่สามารถเชื่อมต่อ API ได้');
+        }
     }
 
     loadStats();

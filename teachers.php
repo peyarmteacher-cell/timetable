@@ -83,16 +83,25 @@
     document.getElementById('teacherForm').onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        await fetch('api/manage.php?action=teacher_add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                name: fd.get('name'),
-                position: fd.get('position')
-            })
-        });
-        closeModal();
-        fetchTeachers();
+        try {
+            const res = await fetch('api/manage.php?action=teacher_add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    name: fd.get('name'),
+                    position: fd.get('position')
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                closeModal();
+                fetchTeachers();
+            } else {
+                alert('ไม่สามารถบันทึกได้: ' + (result.error || 'เกิดข้อผิดพลาด'));
+            }
+        } catch (error) {
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+        }
     };
     async function deleteTeacher(id) {
         if (confirm('ยืนยันการลบรายชื่อครู?')) {

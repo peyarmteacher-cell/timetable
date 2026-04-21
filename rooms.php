@@ -77,13 +77,22 @@
     document.getElementById('roomForm').onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        await fetch('api/manage.php?action=room_add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: fd.get('name') })
-        });
-        closeModal();
-        fetchRooms();
+        try {
+            const res = await fetch('api/manage.php?action=room_add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: fd.get('name') })
+            });
+            const result = await res.json();
+            if (result.success) {
+                closeModal();
+                fetchRooms();
+            } else {
+                alert('ไม่สามารถบันทึกได้: ' + (result.error || 'เกิดข้อผิดพลาด'));
+            }
+        } catch (error) {
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+        }
     };
     async function deleteRoom(id) {
         if (confirm('ยืนยันการลบห้อง?')) {

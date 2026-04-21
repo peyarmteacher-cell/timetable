@@ -96,13 +96,22 @@
     document.getElementById('classroomForm').onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        await fetch('api/manage.php?action=classroom_add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: fd.get('name'), level: fd.get('level') })
-        });
-        closeModal();
-        fetchClassrooms();
+        try {
+            const res = await fetch('api/manage.php?action=classroom_add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: fd.get('name'), level: fd.get('level') })
+            });
+            const result = await res.json();
+            if (result.success) {
+                closeModal();
+                fetchClassrooms();
+            } else {
+                alert('ไม่สามารถบันทึกได้: ' + (result.error || 'เกิดข้อผิดพลาด'));
+            }
+        } catch (error) {
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+        }
     };
     async function deleteClassroom(id) {
         if (confirm('ยืนยันการลบชั้นเรียน? การลบชั้นเรียนอาจจะส่งผลต่อตารางที่จัดไว้แล้ว')) {

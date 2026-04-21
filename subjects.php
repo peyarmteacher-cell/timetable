@@ -116,15 +116,21 @@
             is_double: e.target.is_double.checked ? 1 : 0
         };
         
-        const res = await fetch('api/manage.php?action=subject_add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        
-        if (res.ok) {
-            closeModal();
-            fetchSubjects();
+        try {
+            const res = await fetch('api/manage.php?action=subject_add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) {
+                closeModal();
+                fetchSubjects();
+            } else {
+                alert('ไม่สามารถบันทึกได้: ' + (result.error || 'เกิดข้อผิดพลาด'));
+            }
+        } catch (error) {
+            alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
         }
     };
 

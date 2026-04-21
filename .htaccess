@@ -1,0 +1,13 @@
+RewriteEngine On
+RewriteBase /
+
+# Route clean API calls to PHP files if needed
+# Example: /api/login -> /api/auth.php?action=login
+RewriteRule ^api/login$ api/auth.php?action=login [QSA,L]
+RewriteRule ^api/register$ api/auth.php?action=register [QSA,L]
+RewriteRule ^api/subjects$ api/timetable_api.php?action=get_subjects [QSA,L]
+RewriteRule ^api/auto-generate$ api/timetable_api.php?action=auto_generate [QSA,L]
+RewriteRule ^api/save-timetable$ api/timetable_api.php?action=save_timetable [QSA,L]
+
+# Prevent directory listing
+Options -Indexes

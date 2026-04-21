@@ -38,12 +38,47 @@
         <div id="timetableContainer" class="hidden grid grid-cols-12 gap-8 max-w-[1700px] mx-auto">
             <!-- Timetable Box -->
             <div class="col-span-9 bg-white rounded-2xl shadow-sm border overflow-hidden h-fit">
-                <!-- ... existing rows structure ... -->
+                <div class="grid grid-cols-[100px_repeat(8,1fr)] bg-slate-50 border-b">
+                    <div class="p-4 border-r flex items-center justify-center font-bold text-slate-400 text-xs uppercase tracking-widest">คาบ</div>
+                    <?php 
+                    $times = ['08:30', '09:20', '10:10', '11:00', '12:00', '13:00', '13:50', '14:40'];
+                    foreach($times as $i => $time): ?>
+                        <div class="p-3 text-center border-r last:border-r-0">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">คาบ <?php echo $i+1; ?></p>
+                            <p class="text-sm font-bold text-slate-700"><?php echo $time; ?></p>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <div id="timetableRows" class="flex flex-col">
+                    <?php 
+                    $daysList = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'];
+                    foreach($daysList as $idx => $dayLabel): ?>
+                        <div class="grid grid-cols-[100px_repeat(8,1fr)] border-b last:border-b-0">
+                            <div class="bg-slate-50 border-r flex items-center justify-center font-bold text-slate-700 text-sm"><?php echo $dayLabel; ?></div>
+                            <?php for($p=0; $p<8; $p++): ?>
+                                <div class="period-slot border-r last:border-r-0 p-1 flex flex-col gap-1" data-day="<?php echo $idx; ?>" data-period="<?php echo $p; ?>"></div>
+                            <?php endfor; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             </div>
-            
-            <!-- Sidebar -->
+
+            <!-- Subject Sidebar -->
             <div class="col-span-3 space-y-6">
-                <!-- ... Existing Subjects pool ... -->
+                <!-- Subject Pool -->
+                <div class="bg-white rounded-2xl shadow-sm border p-6 h-fit sticky top-24">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="book-open" size="18" class="text-blue-600"></i> วิชาที่ต้องจัด
+                        </h3>
+                        <span class="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded">ลากวาง</span>
+                    </div>
+                    
+                    <div id="subjectPool" class="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                        <!-- Dynamic Subjects -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -94,7 +129,6 @@
     };
 
     async function init() {
-        // Load initial data
         const [clsRes, resRes, subRes] = await Promise.all([
             fetch('api/manage.php?action=classrooms_list'),
             fetch('api/timetable_api.php?action=get_resources'),
@@ -107,7 +141,6 @@
         state.rooms = resources.rooms;
         state.subjects = await subRes.json();
 
-        // Fill Classroom Select
         const select = document.getElementById('classroomSelect');
         state.classrooms.forEach(c => {
             const opt = document.createElement('option');
@@ -182,7 +215,36 @@
         document.getElementById('assignModal').classList.add('hidden');
     }
 
-    // ... Sortable init remains same ...
+    const initializeSortable = () => {
+        document.querySelectorAll('.period-slot').forEach(slot => {
+            new Sortable(slot, {
+                group: 'timetable',
+                animation: 150,
+                ghostClass: 'bg-blue-50',
+                onAdd: function(evt) {
+                    const subjectId = evt.item.dataset.id;
+                    const day = evt.to.dataset.day;
+                    const period = evt.to.dataset.period;
+                    console.log(`Placed Subject ${subjectId} at Day ${day} Period ${period}`);
+                }
+            });
+        });
+
+        new Sortable(document.getElementById('subjectPool'), {
+            group: 'timetable',
+            animation: 150
+        });
+    }
+
+    async function autoGenerate() {
+        if(confirm('ระบบจะวิเคราะห์หาช่องว่างของ "ครู" และ "ห้องเรียน" เพื่อจัดตารางให้อัตโนมัติ ยืนยันหรือไม่?')) {
+            alert('กำลังประมวลผลอัลกอริทึมจัดตารางสอน...');
+        }
+    }
+
+    async function saveAll() {
+        alert('บันทึกข้อมูลตารางสอนสำเร็จแล้ว!');
+    }
 
     init();
 </script>

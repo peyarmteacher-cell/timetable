@@ -23,29 +23,59 @@
         </div>
 
         <!-- General Settings Tab -->
-        <div id="tab-general" class="tab-content p-8 space-y-6">
-            <form id="generalSettingsForm" class="max-w-md space-y-4">
-                <div class="space-y-1">
-                    <label class="text-sm font-bold text-slate-700">ปีการศึกษา (พ.ศ.)</label>
-                    <input type="number" name="academic_year" class="w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none" placeholder="เช่น 2567" required>
+        <div id="tab-general" class="tab-content p-8 space-y-8">
+            <div class="grid md:grid-cols-2 gap-8">
+                <form id="generalSettingsForm" class="space-y-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <h3 class="font-bold text-lg mb-4 text-slate-800">ปรับปรุงข้อมูล</h3>
+                    <div class="space-y-1">
+                        <label class="text-sm font-bold text-slate-700">ปีการศึกษา (พ.ศ.)</label>
+                        <input type="number" name="academic_year" class="w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none" placeholder="เช่น 2567" required>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-bold text-slate-700">ภาคเรียนที่</label>
+                        <select name="semester" class="w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/20 flex items-center justify-center gap-2">
+                        <i data-lucide="save" size="18"></i> บันทึกการตั้งค่า
+                    </button>
+
+                    <?php if(hasRole('super_admin')): ?>
+                    <button type="button" onclick="syncDB()" class="w-full bg-amber-50 text-amber-700 border border-amber-100 px-6 py-3 rounded-xl font-bold hover:bg-amber-100 transition-all flex items-center justify-center gap-2 mt-4">
+                        <i data-lucide="database-zap" size="18"></i> ตรวจสอบและซิงค์ฐานข้อมูล
+                    </button>
+                    <?php endif; ?>
+                </form>
+
+                <div class="space-y-4">
+                    <h3 class="font-bold text-lg text-slate-800">ข้อมูลปัจจุบัน</h3>
+                    <div id="settingsSummary" class="bg-blue-50 border border-blue-100 p-6 rounded-2xl space-y-3 shadow-sm">
+                        <div class="flex justify-between items-center text-blue-900">
+                            <span class="font-medium text-sm">ปีการศึกษา</span>
+                            <span id="display-year" class="font-bold text-xl">-</span>
+                        </div>
+                        <div class="flex justify-between items-center text-blue-900 border-t border-blue-200 pt-3">
+                            <span class="font-medium text-sm">ภาคเรียนที่</span>
+                            <span id="display-semester" class="font-bold text-xl">-</span>
+                        </div>
+                        <div id="db-health" class="pt-2 text-[10px] text-blue-400 flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                            <span>ซิงค์ข้อมูลล่าสุด: <span id="display-updated">-</span></span>
+                        </div>
+                    </div>
                 </div>
-                <div class="space-y-1">
-                    <label class="text-sm font-bold text-slate-700">ภาคเรียนที่</label>
-                    <select name="semester" class="w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                    </select>
-                </div>
-                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/20">
-                    บันทึกการตั้งค่า
-                </button>
-            </form>
+            </div>
         </div>
 
         <!-- Periods Settings Tab -->
         <div id="tab-periods" class="tab-content hidden p-8 space-y-6">
             <div class="flex justify-between items-center">
-                <h3 class="text-lg font-bold text-slate-900">กำหนดเวลาแต่ละคาบ</h3>
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900">กำหนดเวลาแต่ละคาบ</h3>
+                    <p class="text-xs text-slate-400 font-medium">* รูปแบบเวลา 24 ชั่วโมง (เช่น 08:30)</p>
+                </div>
                 <button onclick="addPeriodRow()" class="text-blue-600 font-bold text-sm flex items-center gap-1 hover:underline">
                     <i data-lucide="plus" size="16"></i> เพิ่มคาบเรียน
                 </button>
@@ -147,26 +177,48 @@
 
     // GENERAL SETTINGS
     async function loadGeneralSettings() {
-        const res = await fetch('api/manage.php?action=get_settings');
-        const data = await res.json();
-        const form = document.getElementById('generalSettingsForm');
-        form.academic_year.value = data.academic_year;
-        form.semester.value = data.semester;
+        try {
+            const res = await fetch('api/manage.php?action=get_settings');
+            const data = await res.json();
+            const form = document.getElementById('generalSettingsForm');
+            form.academic_year.value = data.academic_year || '';
+            form.semester.value = data.semester || '1';
+            
+            document.getElementById('display-year').innerText = data.academic_year || '-';
+            document.getElementById('display-semester').innerText = data.semester || '-';
+            document.getElementById('display-updated').innerText = data.updated_at || 'ไม่มีข้อมูล';
+        } catch (error) {
+            console.error('Failed to load settings', error);
+        }
     }
 
     document.getElementById('generalSettingsForm').onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const res = await fetch('api/manage.php?action=save_settings', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                academic_year: fd.get('academic_year'),
-                semester: fd.get('semester')
-            })
-        });
-        const result = await res.json();
-        if(result.success) Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าทั่วไปเรียบร้อย', 'success');
+        const year = fd.get('academic_year');
+        const semester = fd.get('semester');
+        
+        try {
+            const res = await fetch('api/manage.php?action=save_settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ academic_year: year, semester: semester })
+            });
+            const result = await res.json();
+            if(result.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'บันทึกสำเร็จ',
+                    text: `บันทึกปีการศึกษา ${year} ภาคเรียนที่ ${semester} เรียบร้อยแล้ว`,
+                    timer: 2000
+                });
+                loadGeneralSettings();
+            } else {
+                Swal.fire('ผิดพลาด', result.error || 'ไม่สามารถบันทึกได้', 'error');
+            }
+        } catch (error) {
+            Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+        }
     };
 
     // PERIODS MANAGEMENT
@@ -209,13 +261,22 @@
             end_time: row.querySelector('.p-end').value
         }));
 
-        const res = await fetch('api/manage.php?action=period_save', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ items })
-        });
-        const result = await res.json();
-        if(result.success) Swal.fire('สำเร็จ', 'บันทึกข้อมูลคาบเรียนเรียบร้อย', 'success');
+        try {
+            const res = await fetch('api/manage.php?action=period_save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ items })
+            });
+            const result = await res.json();
+            if(result.success) {
+                Swal.fire('สำเร็จ', `บันทึกข้อมูลเวลาคาบเรียนจำนวน ${items.length} คาบเรียบร้อยแล้ว`, 'success');
+                loadPeriods();
+            } else {
+                Swal.fire('ผิดพลาด', result.error || 'ไม่สามารถบันทึกได้', 'error');
+            }
+        } catch (error) {
+            Swal.fire('ผิดพลาด', 'เซิร์ฟเวอร์ขัดข้อง', 'error');
+        }
     }
 
     // SPECIAL PERIODS
@@ -245,20 +306,37 @@
     document.getElementById('specialPeriodForm').onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
-        const res = await fetch('api/manage.php?action=special_period_add', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                event_name: fd.get('event_name'),
-                day: fd.get('day'),
-                period: fd.get('period'),
-                applies_to_level: fd.get('applies_to_level')
-            })
-        });
-        const result = await res.json();
-        if(result.success) {
-            e.target.reset();
-            loadSpecialPeriods();
+        const event_name = fd.get('event_name');
+        const day = fd.get('day');
+        const period = fd.get('period');
+        const level = fd.get('applies_to_level');
+
+        try {
+            const res = await fetch('api/manage.php?action=special_period_add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    event_name: event_name,
+                    day: day,
+                    period: period,
+                    applies_to_level: level
+                })
+            });
+            const result = await res.json();
+            if(result.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'บันทึกกิจกรรมสำเร็จ',
+                    text: `เพิ่มกิจกรรม "${event_name}" ในวัน ${['', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'][day]} คาบที่ ${period} เรียบร้อยแล้ว`,
+                    timer: 2000
+                });
+                e.target.reset();
+                loadSpecialPeriods();
+            } else {
+                Swal.fire('ผิดพลาด', result.error || 'ไม่สามารถบันทึกได้', 'error');
+            }
+        } catch (error) {
+            Swal.fire('ผิดพลาด', 'เซิร์ฟเวอร์ขัดข้อง', 'error');
         }
     };
 
@@ -269,7 +347,20 @@
         }
     }
 
-    // INIT
+    async function syncDB() {
+        Swal.fire({
+            title: 'กำลังซิงค์ฐานข้อมูล...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+        const res = await fetch('api/manage.php?action=system_db_update');
+        const result = await res.json();
+        if (result.success) {
+            Swal.fire('สำเร็จ', result.message, 'success');
+        } else {
+            Swal.fire('ผิดพลาด', result.error, 'error');
+        }
+    }
     loadGeneralSettings();
     loadPeriods();
     loadSpecialPeriods();

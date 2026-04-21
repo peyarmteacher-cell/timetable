@@ -321,21 +321,44 @@ try {
         // SETTINGS & PERIODS
         case 'get_settings':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
-            $stmt = $pdo->prepare("SELECT * FROM settings WHERE school_id = ?");
-            $stmt->execute([$school_id]);
-            $settings = $stmt->fetch();
-            if (!$settings) {
-                // Return defaults if not set
-                $settings = ['academic_year' => date('Y') + 543, 'semester' => 1];
+            try {
+                $stmt = $pdo->prepare("SELECT * FROM settings WHERE school_id = ?");
+                $stmt->execute([$school_id]);
+                $settings = $stmt->fetch();
+                if (!$settings) {
+                    $settings = ['academic_year' => date('Y') + 543, 'semester' => 1];
+                }
+                jsonResponse($settings);
+            } catch (Exception $e) {
+                // If table doesn't exist, return defaults
+                jsonResponse(['academic_year' => date('Y') + 543, 'semester' => 1]);
             }
-            jsonResponse($settings);
             break;
 
         case 'save_settings':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
-            $stmt = $pdo->prepare("INSERT INTO settings (school_id, academic_year, semester) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE academic_year = VALUES(academic_year), semester = VALUES(semester)");
-            $stmt->execute([$school_id, $data['academic_year'], $data['semester']]);
-            jsonResponse(['success' => true]);
+            try {
+                $stmt = $pdo->prepare("INSERT INTO settings (school_id, academic_year, semester) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE academic_year = VALUES(academic_year), semester = VALUES(semester)");
+                $stmt->execute([$school_id, $data['academic_year'], $data['semester']]);
+                jsonResponse(['success' => true]);
+            } catch (PDOException $e) {
+                if ($e->getCode() == '42S02') { // Table not found
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS `settings` (
+                        `id` int(11) NOT NULL AUTO_INCREMENT,
+                        `school_id` int(11) NOT NULL,
+                        `academic_year` varchar(4) NOT NULL,
+                        `semester` int(1) NOT NULL,
+                        `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                        PRIMARY KEY (`id`),
+                        UNIQUE KEY `school_id` (`school_id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                    // Retry
+                    $stmt = $pdo->prepare("INSERT INTO settings (school_id, academic_year, semester) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE academic_year = VALUES(academic_year), semester = VALUES(semester)");
+                    $stmt->execute([$school_id, $data['academic_year'], $data['semester']]);
+                    jsonResponse(['success' => true]);
+                }
+                throw $e;
+            }
             break;
 
         case 'periods_list':
@@ -350,8 +373,21 @@ try {
             $items = $data['items'] ?? [];
             $pdo->beginTransaction();
             try {
-                // Simple approach: delete and re-insert for the school
-                $pdo->prepare("DELETE FROM periods WHERE school_id = ?")->execute([$school_id]);
+                try {
+                    $pdo->prepare("DELETE FROM periods WHERE school_id = ?")->execute([$school_id]);
+                } catch (PDOException $e) {
+                    if ($e->getCode() == '42S02') {
+                        $pdo->exec("CREATE TABLE IF NOT EXISTS `periods` (
+                            `id` int(11) NOT NULL AUTO_INCREMENT,
+                            `school_id` int(11) NOT NULL,
+                            `period_number` int(11) NOT NULL,
+                            `start_time` time NOT NULL,
+                            `end_time` time NOT NULL,
+                            PRIMARY KEY (`id`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                    } else { throw $e; }
+                }
+                
                 $stmt = $pdo->prepare("INSERT INTO periods (school_id, period_number, start_time, end_time) VALUES (?, ?, ?, ?)");
                 foreach($items as $item) {
                     $stmt->execute([$school_id, $item['period_number'], $item['start_time'], $item['end_time']]);
@@ -359,7 +395,7 @@ try {
                 $pdo->commit();
                 jsonResponse(['success' => true]);
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 jsonResponse(['error' => $e->getMessage()], 500);
             }
             break;
@@ -373,9 +409,28 @@ try {
 
         case 'special_period_add':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
-            $stmt = $pdo->prepare("INSERT INTO special_periods (school_id, event_name, day, period, applies_to_level) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$school_id, $data['event_name'], $data['day'], $data['period'], $data['applies_to_level']]);
-            jsonResponse(['success' => true]);
+            try {
+                $stmt = $pdo->prepare("INSERT INTO special_periods (school_id, event_name, day, period, applies_to_level) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$school_id, $data['event_name'], $data['day'], $data['period'], $data['applies_to_level']]);
+                jsonResponse(['success' => true]);
+            } catch (PDOException $e) {
+                if ($e->getCode() == '42S02') { // Table not found
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS `special_periods` (
+                        `id` int(11) NOT NULL AUTO_INCREMENT,
+                        `school_id` int(11) NOT NULL,
+                        `event_name` varchar(255) NOT NULL,
+                        `day` int(1) NOT NULL,
+                        `period` int(11) NOT NULL,
+                        `applies_to_level` varchar(100) DEFAULT NULL,
+                        PRIMARY KEY (`id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                    // Retry
+                    $stmt = $pdo->prepare("INSERT INTO special_periods (school_id, event_name, day, period, applies_to_level) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$school_id, $data['event_name'], $data['day'], $data['period'], $data['applies_to_level']]);
+                    jsonResponse(['success' => true]);
+                }
+                throw $e;
+            }
             break;
 
         case 'special_period_delete':

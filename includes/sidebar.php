@@ -29,6 +29,9 @@
         <a href="classrooms.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'classrooms.php' ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
             <i data-lucide="graduation-cap" size="20"></i> ชั้นเรียน
         </a>
+        <a href="settings.php" class="flex items-center gap-3 p-3 rounded-xl <?php echo $current_page == 'settings.php' ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'; ?> transition-all">
+            <i data-lucide="settings-2" size="20"></i> การตั้งค่าระบบ
+        </a>
         <?php if (hasRole('super_admin')): ?>
         <div class="pt-4 mt-4 border-t border-slate-100">
             <p class="px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Super Admin</p>

@@ -262,12 +262,46 @@ try {
                     }
                 }
 
-                // [CRITICAL FIX] Specifically add missing 'position' column if it doesn't exist
+                // [CRITICAL FIX] Specifically add missing columns/tables
                 try {
                     $pdo->exec("ALTER TABLE teachers ADD `position` VARCHAR(255) DEFAULT NULL AFTER `name` ");
-                    $details[] = "เพิ่มคอลัมน์ 'position' ในตาราง teachers เรียบร้อยแล้ว";
+                    $details[] = "เพิ่มคอลัมน์ 'position' ในตาราง teachers";
+                } catch (Exception $e) {}
+
+                try {
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS `settings` (
+                        `id` int(11) NOT NULL AUTO_INCREMENT,
+                        `school_id` int(11) NOT NULL,
+                        `academic_year` varchar(4) NOT NULL,
+                        `semester` int(1) NOT NULL,
+                        `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                        PRIMARY KEY (`id`),
+                        UNIQUE KEY `school_id` (`school_id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                    $details[] = "ตรวจสอบตาราง settings";
+                    
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS `periods` (
+                        `id` int(11) NOT NULL AUTO_INCREMENT,
+                        `school_id` int(11) NOT NULL,
+                        `period_number` int(11) NOT NULL,
+                        `start_time` time NOT NULL,
+                        `end_time` time NOT NULL,
+                        PRIMARY KEY (`id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                    $details[] = "ตรวจสอบตาราง periods";
+
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS `special_periods` (
+                        `id` int(11) NOT NULL AUTO_INCREMENT,
+                        `school_id` int(11) NOT NULL,
+                        `event_name` varchar(255) NOT NULL,
+                        `day` int(1) NOT NULL,
+                        `period` int(11) NOT NULL,
+                        `applies_to_level` varchar(100) DEFAULT NULL,
+                        PRIMARY KEY (`id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                    $details[] = "ตรวจสอบตาราง special_periods";
                 } catch (Exception $e) {
-                    // Column likely already exists
+                    $details[] = "พบข้อผิดพลาดบางส่วน: " . $e->getMessage();
                 }
 
                 $msg = "อัพเดทโครงสร้างฐานข้อมูลเสร็จสิ้น\n";
@@ -282,6 +316,73 @@ try {
             } catch (Exception $e) {
                 jsonResponse(['error' => $e->getMessage()], 500);
             }
+            break;
+
+        // SETTINGS & PERIODS
+        case 'get_settings':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $stmt = $pdo->prepare("SELECT * FROM settings WHERE school_id = ?");
+            $stmt->execute([$school_id]);
+            $settings = $stmt->fetch();
+            if (!$settings) {
+                // Return defaults if not set
+                $settings = ['academic_year' => date('Y') + 543, 'semester' => 1];
+            }
+            jsonResponse($settings);
+            break;
+
+        case 'save_settings':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $stmt = $pdo->prepare("INSERT INTO settings (school_id, academic_year, semester) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE academic_year = VALUES(academic_year), semester = VALUES(semester)");
+            $stmt->execute([$school_id, $data['academic_year'], $data['semester']]);
+            jsonResponse(['success' => true]);
+            break;
+
+        case 'periods_list':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $stmt = $pdo->prepare("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC");
+            $stmt->execute([$school_id]);
+            jsonResponse($stmt->fetchAll());
+            break;
+
+        case 'period_save':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $items = $data['items'] ?? [];
+            $pdo->beginTransaction();
+            try {
+                // Simple approach: delete and re-insert for the school
+                $pdo->prepare("DELETE FROM periods WHERE school_id = ?")->execute([$school_id]);
+                $stmt = $pdo->prepare("INSERT INTO periods (school_id, period_number, start_time, end_time) VALUES (?, ?, ?, ?)");
+                foreach($items as $item) {
+                    $stmt->execute([$school_id, $item['period_number'], $item['start_time'], $item['end_time']]);
+                }
+                $pdo->commit();
+                jsonResponse(['success' => true]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                jsonResponse(['error' => $e->getMessage()], 500);
+            }
+            break;
+
+        case 'special_periods_list':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $stmt = $pdo->prepare("SELECT * FROM special_periods WHERE school_id = ? ORDER BY day, period ASC");
+            $stmt->execute([$school_id]);
+            jsonResponse($stmt->fetchAll());
+            break;
+
+        case 'special_period_add':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $stmt = $pdo->prepare("INSERT INTO special_periods (school_id, event_name, day, period, applies_to_level) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$school_id, $data['event_name'], $data['day'], $data['period'], $data['applies_to_level']]);
+            jsonResponse(['success' => true]);
+            break;
+
+        case 'special_period_delete':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $stmt = $pdo->prepare("DELETE FROM special_periods WHERE id = ? AND school_id = ?");
+            $stmt->execute([$_GET['id'], $school_id]);
+            jsonResponse(['success' => true]);
             break;
 
         default:

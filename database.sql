@@ -16,6 +16,40 @@ DROP TABLE IF EXISTS `subjects`;
 DROP TABLE IF EXISTS `users`;
 DROP TABLE IF EXISTS `schools`;
 
+CREATE TABLE IF NOT EXISTS `settings` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `school_id` int(11) NOT NULL,
+  `academic_year` varchar(4) NOT NULL,
+  `semester` int(1) NOT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `school_id` (`school_id`),
+  CONSTRAINT `settings_ibfk_1` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `periods` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `school_id` int(11) NOT NULL,
+  `period_number` int(11) NOT NULL,
+  `start_time` time NOT NULL,
+  `end_time` time NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `school_id` (`school_id`),
+  CONSTRAINT `periods_ibfk_1` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `special_periods` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `school_id` int(11) NOT NULL,
+  `event_name` varchar(255) NOT NULL,
+  `day` int(1) NOT NULL, -- 1=Mon, ..., 5=Fri
+  `period` int(11) NOT NULL,
+  `applies_to_level` varchar(100) DEFAULT NULL, -- e.g. "ม.1,ม.2,ม.3" or "All"
+  PRIMARY KEY (`id`),
+  KEY `school_id` (`school_id`),
+  CONSTRAINT `special_periods_ibfk_1` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Re-enable foreign key checks
 SET foreign_key_checks = 1;
 

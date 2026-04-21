@@ -105,10 +105,11 @@
                 closeModal();
                 fetchTeachers();
             } else {
-                alert('ไม่สามารถบันทึกได้: ' + (result.error || 'เกิดข้อผิดพลาด'));
+                Swal.fire('ไม่สามารถบันทึกได้', result.error || 'เกิดข้อผิดพลาด', 'error');
             }
         } catch (error) {
-            alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ หรือข้อมูลที่ส่งกลับมาไม่ถูกต้อง', 'error');
+            console.error(error);
         }
     };
     async function deleteTeacher(id) {

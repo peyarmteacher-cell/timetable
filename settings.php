@@ -85,8 +85,8 @@
                     <thead>
                         <tr class="text-slate-400 text-xs uppercase border-b">
                             <th class="py-2">คาบที่</th>
-                            <th class="py-2">เริ่ม (00:00)</th>
-                            <th class="py-2">ถึง (00:00)</th>
+                            <th class="py-2">เริ่ม (เช่น 08:30)</th>
+                            <th class="py-2">ถึง (เช่น 09:20)</th>
                             <th class="py-2 text-right">จัดการ</th>
                         </tr>
                     </thead>
@@ -133,10 +133,16 @@
                                 <input type="number" name="period" class="w-full px-3 py-2 rounded-lg border" placeholder="เช่น 4" required>
                             </div>
                         </div>
-                        <div class="space-y-1">
-                            <label class="font-bold">ระดับชั้นที่บังคับ (เว้นว่างไว้หากใช้กับทั้งหมด)</label>
-                            <input type="text" name="applies_to_level" class="w-full px-3 py-2 rounded-lg border" placeholder="เช่น ม.1, ม.2, ม.3">
-                            <p class="text-[10px] text-slate-400 italic">* หากไม่ระบุ จะถือว่านักเรียนทุกคนในวันและคาบนั้นเรียนพร้อมกัน</p>
+                        <div class="space-y-2">
+                            <label class="font-bold">ระดับชั้นที่บังคับ</label>
+                            <div class="bg-white p-3 rounded-lg border max-h-40 overflow-y-auto space-y-2" id="levelCheckboxes">
+                                <!-- Checkboxes by JS -->
+                                <p class="text-xs text-slate-400">กรุณาเพิ่มข้อมูลชั้นเรียนก่อน</p>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1">
+                                <input type="checkbox" id="selectAllLevels" onchange="toggleSelectAll(this)">
+                                <label for="selectAllLevels" class="text-xs text-slate-600 cursor-pointer italic font-bold">เลือกทั้งหมด</label>
+                            </div>
                         </div>
                         <button type="submit" class="w-full bg-slate-900 text-white p-2 rounded-xl font-bold hover:bg-slate-800 transition-all">
                             เพิ่มลงในรายการ
@@ -243,10 +249,10 @@
         tr.className = 'period-row';
         tr.innerHTML = `
             <td class="py-3"><input type="number" class="p-num w-16 px-2 py-1 border rounded" value="${num || rowCount}"></td>
-            <td class="py-3"><input type="time" class="p-start px-2 py-1 border rounded" value="${start}"></td>
-            <td class="py-3"><input type="time" class="p-end px-2 py-1 border rounded" value="${end}"></td>
+            <td class="py-3"><input type="text" class="p-start w-24 px-2 py-1 border rounded" value="${start}" placeholder="08:30"></td>
+            <td class="py-3"><input type="text" class="p-end w-24 px-2 py-1 border rounded" value="${end}" placeholder="09:20"></td>
             <td class="py-3 text-right">
-                <button onclick="this.closest('tr').remove()" class="text-red-400 hover:text-red-600"><i data-lucide="minus-circle" size="18"></i></button>
+                <button onclick="this.closest('tr').remove()" class="text-slate-300 hover:text-red-500 transition-colors"><i data-lucide="minus-circle" size="18"></i></button>
             </td>
         `;
         container.appendChild(tr);
@@ -280,6 +286,24 @@
     }
 
     // SPECIAL PERIODS
+    async function loadLevels() {
+        const res = await fetch('api/manage.php?action=get_levels');
+        const levels = await res.json();
+        const container = document.getElementById('levelCheckboxes');
+        if (levels.length > 0) {
+            container.innerHTML = levels.map(lv => `
+                <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded transition-all">
+                    <input type="checkbox" name="levels" value="${lv}" class="level-cb">
+                    <span>${lv}</span>
+                </label>
+            `).join('');
+        }
+    }
+
+    function toggleSelectAll(cb) {
+        document.querySelectorAll('.level-cb').forEach(el => el.checked = cb.checked);
+    }
+
     async function loadSpecialPeriods() {
         const res = await fetch('api/manage.php?action=special_periods_list');
         const data = await res.json();
@@ -309,7 +333,9 @@
         const event_name = fd.get('event_name');
         const day = fd.get('day');
         const period = fd.get('period');
-        const level = fd.get('applies_to_level');
+        
+        const selectedLevels = Array.from(document.querySelectorAll('.level-cb:checked')).map(cb => cb.value);
+        const levelStr = selectedLevels.length === 0 ? '' : selectedLevels.join(',');
 
         try {
             const res = await fetch('api/manage.php?action=special_period_add', {
@@ -319,7 +345,7 @@
                     event_name: event_name,
                     day: day,
                     period: period,
-                    applies_to_level: level
+                    applies_to_level: levelStr
                 })
             });
             const result = await res.json();
@@ -331,6 +357,7 @@
                     timer: 2000
                 });
                 e.target.reset();
+                document.getElementById('selectAllLevels').checked = false;
                 loadSpecialPeriods();
             } else {
                 Swal.fire('ผิดพลาด', result.error || 'ไม่สามารถบันทึกได้', 'error');
@@ -363,6 +390,7 @@
     }
     loadGeneralSettings();
     loadPeriods();
+    loadLevels();
     loadSpecialPeriods();
 </script>
 </body>

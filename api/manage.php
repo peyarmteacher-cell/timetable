@@ -126,6 +126,12 @@ try {
             $stmt->execute([$school_id]);
             jsonResponse($stmt->fetchAll());
             break;
+        case 'get_levels':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $stmt = $pdo->prepare("SELECT DISTINCT level FROM classrooms WHERE school_id = ? ORDER BY level ASC");
+            $stmt->execute([$school_id]);
+            jsonResponse($stmt->fetchAll(PDO::FETCH_COLUMN));
+            break;
         case 'classroom_add':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
             $stmt = $pdo->prepare("INSERT INTO classrooms (name, level, school_id) VALUES (?, ?, ?)");

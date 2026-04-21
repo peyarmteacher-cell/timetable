@@ -184,17 +184,56 @@
     }
 
     async function updateDb() {
+        const btn = event.currentTarget;
+        const icon = btn.querySelector('i');
+        
+        // Start Loading Animation
+        btn.classList.add('opacity-50', 'pointer-events-none');
+        icon.classList.add('animate-spin');
+        
         try {
             const res = await fetch('api/manage.php?action=system_sync');
             const data = await res.json();
+            
+            // Artificial delay for visual feedback
+            await new Promise(r => setTimeout(r, 800));
+
             if(data.success) {
-                alert(`ซิงค์ข้อมูลสำเร็จ!\nเวลาเซิร์ฟเวอร์: ${data.timestamp}\nเชื่อมต่อฐานข้อมูล: ${data.db}`);
+                showToast('ซิงค์ MySQL สำเร็จ ข้อมูลเป็นปัจจุบันที่สุด', 'success');
             } else {
-                alert('การซิงค์ล้มเหลว: ' + data.error);
+                showToast('การซิงค์ล้มเหลว: ' + data.error, 'error');
             }
         } catch (e) {
-            alert('ไม่สามารถเชื่อมต่อ API ได้');
+            showToast('ไม่สามารถเชื่อมต่อ API ฐานข้อมูลได้', 'error');
+        } finally {
+            btn.classList.remove('opacity-50', 'pointer-events-none');
+            icon.classList.remove('animate-spin');
         }
+    }
+
+    function showToast(message, type = 'success') {
+        // Simple Toast Notification
+        const toast = document.createElement('div');
+        toast.className = `fixed bottom-8 right-8 px-6 py-4 rounded-2xl shadow-2xl z-[1000] flex items-center gap-3 transform translate-y-10 opacity-0 transition-all duration-500 font-bold border-2 ${
+            type === 'success' ? 'bg-white border-green-100 text-green-700' : 'bg-white border-red-100 text-red-700'
+        }`;
+        toast.innerHTML = `
+            <i data-lucide="${type === 'success' ? 'check-circle' : 'alert-circle'}" size="20"></i>
+            <span>${message}</span>
+        `;
+        document.body.appendChild(toast);
+        lucide.createIcons();
+        
+        // Animation
+        setTimeout(() => {
+            toast.classList.remove('translate-y-10', 'opacity-0');
+        }, 10);
+        
+        // Auto-remove
+        setTimeout(() => {
+            toast.classList.add('translate-y-10', 'opacity-0');
+            setTimeout(() => toast.remove(), 500);
+        }, 4000);
     }
 
     loadStats();

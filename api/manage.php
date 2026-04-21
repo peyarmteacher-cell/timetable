@@ -160,7 +160,6 @@ switch ($action) {
         $pdo->beginTransaction();
         try {
             $id = $_GET['id'];
-            // Since we have ON DELETE CASCADE in DB, deleting school will wipe related data
             $stmt = $pdo->prepare("DELETE FROM schools WHERE id = ?");
             $stmt->execute([$id]);
             $pdo->commit();
@@ -169,6 +168,26 @@ switch ($action) {
             $pdo->rollBack();
             jsonResponse(['error' => $e->getMessage()], 500);
         }
+        break;
+
+    // SUPER ADMIN - USERS
+    case 'admin_users_list':
+        if (!hasRole('super_admin')) jsonResponse(['error' => 'Forbidden'], 403);
+        $stmt = $pdo->prepare("SELECT u.*, s.name as school_name FROM users u LEFT JOIN schools s ON u.school_id = s.id ORDER BY u.id DESC");
+        $stmt->execute();
+        jsonResponse($stmt->fetchAll());
+        break;
+    case 'admin_user_approve':
+        if (!hasRole('super_admin')) jsonResponse(['error' => 'Forbidden'], 403);
+        $stmt = $pdo->prepare("UPDATE users SET is_approved = 1 WHERE id = ?");
+        $stmt->execute([$_GET['id']]);
+        jsonResponse(['success' => true]);
+        break;
+    case 'admin_user_delete':
+        if (!hasRole('super_admin')) jsonResponse(['error' => 'Forbidden'], 403);
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ? AND role != 'super_admin'");
+        $stmt->execute([$_GET['id']]);
+        jsonResponse(['success' => true]);
         break;
 
     // SYSTEM SYNC

@@ -17,14 +17,14 @@ try {
     switch ($action) {
         // SUBJECTS
         case 'subjects_list':
-            $stmt = $pdo->prepare("SELECT * FROM subjects WHERE school_id = ? ORDER BY code ASC");
+            $stmt = $pdo->prepare("SELECT * FROM subjects WHERE school_id = ? ORDER BY level, code ASC");
             $stmt->execute([$school_id]);
             jsonResponse($stmt->fetchAll());
             break;
         case 'subject_add':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
-            $stmt = $pdo->prepare("INSERT INTO subjects (code, name, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$data['code'], $data['name'], $data['hours'], $data['is_double'], $school_id]);
+            $stmt = $pdo->prepare("INSERT INTO subjects (code, name, level, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$data['code'], $data['name'], $data['level'] ?? '', $data['hours'], $data['is_double'], $school_id]);
             jsonResponse(['success' => true]);
             break;
         case 'subject_delete':
@@ -69,9 +69,9 @@ try {
             $pdo->beginTransaction();
             try {
                 if ($type === 'subjects') {
-                    $stmt = $pdo->prepare("INSERT INTO subjects (code, name, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?)");
+                    $stmt = $pdo->prepare("INSERT INTO subjects (code, name, level, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?, ?)");
                     foreach ($items as $item) {
-                        $stmt->execute([$item['code'], $item['name'], $item['hours'], $item['is_double'] ? 1 : 0, $school_id]);
+                        $stmt->execute([$item['code'], $item['name'], $item['level'] ?? '', $item['hours'], $item['is_double'] ? 1 : 0, $school_id]);
                     }
                 } else if ($type === 'teachers') {
                     $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
@@ -306,6 +306,24 @@ try {
                         PRIMARY KEY (`id`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
                     $details[] = "ตรวจสอบตาราง special_periods";
+                try {
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS `teaching_load` (
+                        `id` int(11) NOT NULL AUTO_INCREMENT,
+                        `school_id` int(11) NOT NULL,
+                        `teacher_id` int(11) NOT NULL,
+                        `subject_id` int(11) NOT NULL,
+                        `classroom_id` int(11) NOT NULL,
+                        `room_id` int(11) DEFAULT NULL,
+                        PRIMARY KEY (`id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                    $details[] = "ตรวจสอบตาราง teaching_load";
+
+                    // Add level to subjects if not exists
+                    try {
+                        $pdo->exec("ALTER TABLE subjects ADD `level` VARCHAR(20) DEFAULT NULL AFTER `name` ");
+                        $details[] = "เพิ่มคอลัมน์ 'level' ในตาราง subjects";
+                    } catch (Exception $e) {}
+
                 } catch (Exception $e) {
                     $details[] = "พบข้อผิดพลาดบางส่วน: " . $e->getMessage();
                 }
@@ -444,6 +462,86 @@ try {
             $stmt = $pdo->prepare("DELETE FROM special_periods WHERE id = ? AND school_id = ?");
             $stmt->execute([$_GET['id'], $school_id]);
             jsonResponse(['success' => true]);
+            break;
+
+        case 'teaching_load_list':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $teacher_id = $_GET['teacher_id'] ?? 0;
+            $sql = "SELECT tl.*, s.name as subject_name, s.code as subject_code, c.name as classroom_name, c.level as classroom_level, r.name as room_name 
+                    FROM teaching_load tl 
+                    JOIN subjects s ON tl.subject_id = s.id 
+                    JOIN classrooms c ON tl.classroom_id = c.id 
+                    LEFT JOIN rooms r ON tl.room_id = r.id 
+                    WHERE tl.school_id = ?";
+            $params = [$school_id];
+            if ($teacher_id) {
+                $sql .= " AND tl.teacher_id = ?";
+                $params[] = $teacher_id;
+            }
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            jsonResponse($stmt->fetchAll());
+            break;
+
+        case 'teaching_load_add':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $stmt = $pdo->prepare("INSERT INTO teaching_load (school_id, teacher_id, subject_id, classroom_id, room_id) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$school_id, $data['teacher_id'], $data['subject_id'], $data['classroom_id'], $data['room_id']]);
+            jsonResponse(['success' => true]);
+            break;
+
+        case 'teaching_load_delete':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $stmt = $pdo->prepare("DELETE FROM teaching_load WHERE id = ? AND school_id = ?");
+            $stmt->execute([$_GET['id'], $school_id]);
+            jsonResponse(['success' => true]);
+            break;
+
+        case 'subjects_by_level':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $level = $_GET['level'] ?? '';
+            $stmt = $pdo->prepare("SELECT * FROM subjects WHERE school_id = ? AND level = ?");
+            $stmt->execute([$school_id, $level]);
+            jsonResponse($stmt->fetchAll());
+            break;
+
+        case 'get_teacher_timetable':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $teacher_id = $_GET['teacher_id'];
+            $stmt = $pdo->prepare("SELECT t.*, s.name as subject_name, s.code as subject_code, c.level as classroom_level, c.name as classroom_name, r.name as room_name 
+                                    FROM timetable t
+                                    JOIN subjects s ON t.subject_id = s.id
+                                    JOIN classrooms c ON t.classroom_id = c.id
+                                    JOIN rooms r ON t.room_id = r.id
+                                    WHERE t.teacher_id = ? AND t.school_id = ?");
+            $stmt->execute([$teacher_id, $school_id]);
+            jsonResponse($stmt->fetchAll());
+            break;
+
+        case 'get_classroom_timetable':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $classroom_id = $_GET['classroom_id'];
+            $stmt = $pdo->prepare("SELECT t.*, s.name as subject_name, s.code as subject_code, tea.name as teacher_name, r.name as room_name 
+                                    FROM timetable t
+                                    JOIN subjects s ON t.subject_id = s.id
+                                    JOIN teachers tea ON t.teacher_id = tea.id
+                                    JOIN rooms r ON t.room_id = r.id
+                                    WHERE t.classroom_id = ? AND t.school_id = ?");
+            $stmt->execute([$classroom_id, $school_id]);
+            jsonResponse($stmt->fetchAll());
+            break;
+
+        case 'get_room_timetable':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $room_id = $_GET['room_id'];
+            $stmt = $pdo->prepare("SELECT t.*, s.name as subject_name, s.code as subject_code, tea.name as teacher_name, c.level as classroom_level, c.name as classroom_name 
+                                    FROM timetable t
+                                    JOIN subjects s ON t.subject_id = s.id
+                                    JOIN teachers tea ON t.teacher_id = tea.id
+                                    JOIN classrooms c ON t.classroom_id = c.id
+                                    WHERE t.room_id = ? AND t.school_id = ?");
+            $stmt->execute([$room_id, $school_id]);
+            jsonResponse($stmt->fetchAll());
             break;
 
         default:

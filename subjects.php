@@ -25,6 +25,7 @@
         <table class="w-full text-left border-collapse">
             <thead>
                 <tr class="bg-slate-50 border-b">
+                    <th class="p-4 font-bold text-slate-400 uppercase text-xs">ระดับชั้น</th>
                     <th class="p-4 font-bold text-slate-400 uppercase text-xs">รหัสวิชา</th>
                     <th class="p-4 font-bold text-slate-400 uppercase text-xs">ชื่อวิชา</th>
                     <th class="p-4 font-bold text-slate-400 uppercase text-xs text-center">ชม./สัปดาห์</th>
@@ -46,6 +47,11 @@
                 <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition-colors"><i data-lucide="x"></i></button>
             </div>
             <form id="subjectForm" class="p-6 space-y-4">
+                <div class="space-y-1">
+                    <label class="text-sm font-bold text-slate-700">ระดับชั้นหลัก (เช่น ป.1, ม.1)</label>
+                    <input type="text" name="level" id="subjectLevel" list="levelSuggestions" class="w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ระบุระดับชั้น..." required>
+                    <datalist id="levelSuggestions"></datalist>
+                </div>
                 <div class="space-y-1">
                     <label class="text-sm font-bold text-slate-700">รหัสรายวิชา</label>
                     <input type="text" name="code" class="w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none" placeholder="เช่น ท11101" required>
@@ -82,6 +88,7 @@
         const list = document.getElementById('subjectList');
         list.innerHTML = data.map(item => `
             <tr class="hover:bg-slate-50 transition-colors">
+                <td class="p-4 font-bold text-slate-500 text-xs">${item.level || '-'}</td>
                 <td class="p-4 font-bold text-blue-600">${item.code}</td>
                 <td class="p-4 font-medium">${item.name}</td>
                 <td class="p-4 text-center">${item.hours_per_week}</td>
@@ -94,6 +101,11 @@
             </tr>
         `).join('');
         lucide.createIcons();
+        
+        // Update Suggestions
+        const levels = [...new Set(data.filter(i => i.level).map(i => i.level))];
+        const datalist = document.getElementById('levelSuggestions');
+        datalist.innerHTML = levels.map(lv => `<option value="${lv}">`).join('');
     }
 
     function openModal() {
@@ -110,6 +122,7 @@
         e.preventDefault();
         const fd = new FormData(e.target);
         const data = {
+            level: fd.get('level'),
             code: fd.get('code'),
             name: fd.get('name'),
             hours: fd.get('hours'),
@@ -146,7 +159,7 @@
         let headers = [];
         let filename = "";
         if (type === 'subjects') {
-            headers = [["รหัสวิชา", "ชื่อวิชา", "ชั่วโมงต่อสัปดาห์", "คาบคู่(1=มี,0=ไม่มี)"]];
+            headers = [["ระดับชั้น", "รหัสวิชา", "ชื่อวิชา", "ชั่วโมงต่อสัปดาห์", "คาบคู่(1=มี,0=ไม่มี)"]];
             filename = "template_subjects.xlsx";
         }
         const wb = XLSX.utils.book_new();
@@ -169,6 +182,7 @@
             const items = jsonData.map(row => {
                 if (type === 'subjects') {
                     return {
+                        level: row["ระดับชั้น"],
                         code: row["รหัสวิชา"],
                         name: row["ชื่อวิชา"],
                         hours: row["ชั่วโมงต่อสัปดาห์"],

@@ -85,6 +85,7 @@ CREATE TABLE `subjects` (
 CREATE TABLE `teachers` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
+  `position` varchar(255) DEFAULT NULL,
   `school_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `school_id` (`school_id`),

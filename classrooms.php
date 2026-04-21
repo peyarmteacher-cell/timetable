@@ -5,11 +5,20 @@
     <header class="flex justify-between items-center mb-8">
         <div>
             <h2 class="text-3xl font-bold text-slate-900">จัดการข้อมูลชั้นเรียน</h2>
-            <p class="text-slate-500">กำหนดกลุ่มนักเรียนและระดับชั้น (เช่น ป.1/1)</p>
+            <p class="text-slate-500">กำหนดกลุ่มมนักเรียนและระดับชั้น (เช่น ป.1/1)</p>
         </div>
-        <button onclick="openModal()" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/20">
-            <i data-lucide="graduation-cap" size="18"></i> เพิ่มชั้นเรียน
-        </button>
+        <div class="flex gap-3">
+            <button onclick="downloadTemplate('classrooms')" class="bg-white border text-slate-700 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all text-sm">
+                <i data-lucide="download" size="18"></i> เทมเพลต Excel
+            </button>
+            <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv" onchange="handleExcelImport(event, 'classrooms')">
+            <button onclick="document.getElementById('excelInput').click()" class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-100 transition-all text-sm">
+                <i data-lucide="file-up" size="18"></i> นำเข้า Excel
+            </button>
+            <button onclick="openModal()" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/20">
+                <i data-lucide="graduation-cap" size="18"></i> เพิ่มชั้นเรียน
+            </button>
+        </div>
     </header>
 
     <div class="bg-white rounded-2xl shadow-sm border overflow-hidden max-w-4xl">
@@ -101,6 +110,56 @@
             fetchClassrooms();
         }
     }
+
+    // Excel Utilities
+    function downloadTemplate(type) {
+        let headers = [];
+        let filename = "";
+        if (type === 'classrooms') {
+            headers = [["ระดับชั้น", "เลขห้อง/ทับ"]];
+            filename = "template_classrooms.xlsx";
+        }
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(headers);
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        XLSX.writeFile(wb, filename);
+    }
+
+    function handleExcelImport(event, type) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+            const items = jsonData.map(row => ({ 
+                level: row["ระดับชั้น"],
+                name: row["เลขห้อง/ทับ"] 
+            }));
+
+            if (items.length > 0) {
+                const res = await fetch(`api/manage.php?action=bulk_import&type=${type}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert(`นำเข้าสำเร็จ ${result.count} รายการ`);
+                    fetchClassrooms();
+                } else {
+                    alert('เกิดข้อผิดพลาด: ' + result.error);
+                }
+            }
+            event.target.value = ""; 
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
     fetchClassrooms();
 </script>
 </body>

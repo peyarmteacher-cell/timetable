@@ -36,9 +36,46 @@ switch ($action) {
         jsonResponse($stmt->fetchAll());
         break;
     case 'teacher_add':
-        $stmt = $pdo->prepare("INSERT INTO teachers (name, school_id) VALUES (?, ?)");
-        $stmt->execute([$data['name'], $school_id]);
+        $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
+        $stmt->execute([$data['name'], $data['position'] ?? '', $school_id]);
         jsonResponse(['success' => true]);
+        break;
+
+    // BULK IMPORTS
+    case 'bulk_import':
+        $type = $_GET['type'] ?? '';
+        $items = $data['items'] ?? [];
+        if (empty($items)) jsonResponse(['error' => 'No items found'], 400);
+
+        $pdo->beginTransaction();
+        try {
+            if ($type === 'subjects') {
+                $stmt = $pdo->prepare("INSERT INTO subjects (code, name, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?)");
+                foreach ($items as $item) {
+                    $stmt->execute([$item['code'], $item['name'], $item['hours'], $item['is_double'] ? 1 : 0, $school_id]);
+                }
+            } else if ($type === 'teachers') {
+                $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
+                foreach ($items as $item) {
+                    $stmt->execute([$item['name'], $item['position'] ?? '', $school_id]);
+                }
+            } else if ($type === 'rooms') {
+                $stmt = $pdo->prepare("INSERT INTO rooms (name, school_id) VALUES (?, ?)");
+                foreach ($items as $item) {
+                    $stmt->execute([$item['name'], $school_id]);
+                }
+            } else if ($type === 'classrooms') {
+                $stmt = $pdo->prepare("INSERT INTO classrooms (name, level, school_id) VALUES (?, ?, ?)");
+                foreach ($items as $item) {
+                    $stmt->execute([$item['name'], $item['level'], $school_id]);
+                }
+            }
+            $pdo->commit();
+            jsonResponse(['success' => true, 'count' => count($items)]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            jsonResponse(['error' => $e->getMessage()], 500);
+        }
         break;
     case 'teacher_delete':
         $stmt = $pdo->prepare("DELETE FROM teachers WHERE id = ? AND school_id = ?");

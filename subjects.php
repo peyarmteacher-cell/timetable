@@ -7,9 +7,18 @@
             <h2 class="text-3xl font-bold text-slate-900">จัดการรายวิชา</h2>
             <p class="text-slate-500">เพิ่ม แก้ไข และลบข้อมูลรายวิชาของโรงเรียน</p>
         </div>
-        <button onclick="openModal()" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/20">
-            <i data-lucide="plus" size="18"></i> เพิ่มรายวิชา
-        </button>
+        <div class="flex gap-3">
+            <button onclick="downloadTemplate('subjects')" class="bg-white border text-slate-700 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all text-sm">
+                <i data-lucide="download" size="18"></i> เทมเพลต Excel
+            </button>
+            <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv" onchange="handleExcelImport(event, 'subjects')">
+            <button onclick="document.getElementById('excelInput').click()" class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-100 transition-all text-sm">
+                <i data-lucide="file-up" size="18"></i> นำเข้า Excel
+            </button>
+            <button onclick="openModal()" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/20">
+                <i data-lucide="plus" size="18"></i> เพิ่มรายวิชา
+            </button>
+        </div>
     </header>
 
     <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
@@ -124,6 +133,61 @@
             await fetch(`api/manage.php?action=subject_delete&id=${id}`);
             fetchSubjects();
         }
+    }
+
+    // Excel Utilities
+    function downloadTemplate(type) {
+        let headers = [];
+        let filename = "";
+        if (type === 'subjects') {
+            headers = [["รหัสวิชา", "ชื่อวิชา", "ชั่วโมงต่อสัปดาห์", "คาบคู่(1=มี,0=ไม่มี)"]];
+            filename = "template_subjects.xlsx";
+        }
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(headers);
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        XLSX.writeFile(wb, filename);
+    }
+
+    function handleExcelImport(event, type) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+            const items = jsonData.map(row => {
+                if (type === 'subjects') {
+                    return {
+                        code: row["รหัสวิชา"],
+                        name: row["ชื่อวิชา"],
+                        hours: row["ชั่วโมงต่อสัปดาห์"],
+                        is_double: parseInt(row["คาบคู่(1=มี,0=ไม่มี)"]) === 1
+                    };
+                }
+            });
+
+            if (items.length > 0) {
+                const res = await fetch(`api/manage.php?action=bulk_import&type=${type}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert(`นำเข้าสำเร็จ ${result.count} รายการ`);
+                    fetchSubjects();
+                } else {
+                    alert('เกิดข้อผิดพลาด: ' + result.error);
+                }
+            }
+            event.target.value = ""; // Reset
+        };
+        reader.readAsArrayBuffer(file);
     }
 
     fetchSubjects();

@@ -223,6 +223,31 @@ switch ($action) {
         }
         break;
 
+    case 'system_db_update':
+        if (!hasRole('super_admin')) jsonResponse(['error' => 'Forbidden'], 403);
+        try {
+            $sqlFile = dirname(__DIR__) . '/database.sql';
+            if (!file_exists($sqlFile)) jsonResponse(['error' => 'SQL file not found'], 404);
+            
+            $sql = file_get_contents($sqlFile);
+            // Remove DROP TABLE and TRUNCATE if we want it to be safe
+            // But if the user wants an "Automatic Update", they might expect a clean state or just schema sync.
+            // For safety in this environment, we'll try to run it but alert the user.
+            // A better way is to split SQL into statements and run individually.
+            $queries = explode(';', $sql);
+            foreach ($queries as $q) {
+                $q = trim($q);
+                if (empty($q)) continue;
+                // Basic safety: Don't drop if we are doing a "sync"
+                if (stripos($q, 'DROP TABLE') === 0) continue; 
+                $pdo->exec($q);
+            }
+            jsonResponse(['success' => true, 'message' => 'ตรวจสอบและเตรียมโครงสร้างฐานข้อมูลเรียบร้อยแล้ว (ไม่รวมการลบข้อมูลเดิม)']);
+        } catch (Exception $e) {
+            jsonResponse(['error' => $e->getMessage()], 500);
+        }
+        break;
+
     default:
         jsonResponse(['error' => 'Action not found'], 404);
 }

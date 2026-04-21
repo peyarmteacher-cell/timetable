@@ -8,6 +8,11 @@
             <p class="text-slate-500 font-medium">ยินดีต้อนรับสู่ระบบจัดการตารางสอนอัจฉริยะ</p>
         </div>
         <div class="flex gap-4">
+            <?php if (hasRole('super_admin')): ?>
+            <button onclick="autoUpdateDb(event)" class="bg-amber-50 border-2 border-amber-100 text-amber-700 px-5 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:bg-amber-100 transition-all shadow-sm">
+                <i data-lucide="refresh-cw" size="18"></i> อัพเดทตาราง MySQL
+            </button>
+            <?php endif; ?>
             <button onclick="updateDb(event)" class="bg-white border-2 border-slate-100 text-slate-700 px-5 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-50 hover:border-slate-200 transition-all shadow-sm">
                 <i data-lucide="database" size="18" class="text-blue-500"></i> ซิงค์ MySQL
             </button>
@@ -228,6 +233,31 @@
             const result = await res.json();
             if(result.success) loadApprovals();
             else alert('Error: ' + result.error);
+        }
+    }
+
+    async function autoUpdateDb(event) {
+        const btn = event.currentTarget;
+        const icon = btn.querySelector('i');
+        if(!confirm('คุณต้องการอัพเดทโครงสร้างตารางฐานข้อมูลอัตโนมัติใช่หรือไม่? (ระบบจะตรวจสอบและสร้างตารางที่ขาดหายไป)')) return;
+
+        btn.classList.add('opacity-50', 'pointer-events-none');
+        icon.classList.add('animate-spin');
+        
+        try {
+            const res = await fetch('api/manage.php?action=system_db_update');
+            const data = await res.json();
+            
+            if(data.success) {
+                showToast(data.message, 'success');
+            } else {
+                showToast('การอัพเดทล้มเหลว: ' + data.error, 'error');
+            }
+        } catch (e) {
+            showToast('พบข้อผิดพลาดในการเชื่อมต่อ', 'error');
+        } finally {
+            btn.classList.remove('opacity-50', 'pointer-events-none');
+            icon.classList.remove('animate-spin');
         }
     }
 

@@ -49,7 +49,15 @@
                 </div>
                 <div class="space-y-1">
                     <label class="text-sm font-bold text-slate-700">ตำแหน่ง</label>
-                    <input type="text" name="position" class="w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none" placeholder="เช่น ครูชำนาญการพิเศษ">
+                    <select name="position" class="w-full px-4 py-2 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="ครูอัตราจ้าง">ครูอัตราจ้าง</option>
+                        <option value="พนักงานราชการครู">พนักงานราชการครู</option>
+                        <option value="ครู">ครู</option>
+                        <option value="ครูชำนาญการ">ครูชำนาญการ</option>
+                        <option value="ครูชำนาญการพิเศษ">ครูชำนาญการพิเศษ</option>
+                        <option value="ครูเชี่ยวชาญ">ครูเชี่ยวชาญ</option>
+                        <option value="ครูเชี่ยวชาญพิเศษ">ครูเชี่ยวชาญพิเศษ</option>
+                    </select>
                 </div>
                 <div class="pt-4 flex gap-3">
                     <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 rounded-xl border font-bold text-slate-600 hover:bg-slate-50 transition-all">ยกเลิก</button>

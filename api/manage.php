@@ -230,19 +230,32 @@ switch ($action) {
             if (!file_exists($sqlFile)) jsonResponse(['error' => 'SQL file not found'], 404);
             
             $sql = file_get_contents($sqlFile);
-            // Remove DROP TABLE and TRUNCATE if we want it to be safe
-            // But if the user wants an "Automatic Update", they might expect a clean state or just schema sync.
-            // For safety in this environment, we'll try to run it but alert the user.
-            // A better way is to split SQL into statements and run individually.
             $queries = explode(';', $sql);
+            $successCount = 0;
+            $errorCount = 0;
+
             foreach ($queries as $q) {
                 $q = trim($q);
                 if (empty($q)) continue;
-                // Basic safety: Don't drop if we are doing a "sync"
                 if (stripos($q, 'DROP TABLE') === 0) continue; 
-                $pdo->exec($q);
+                
+                try {
+                    $pdo->exec($q);
+                    $successCount++;
+                } catch (Exception $e) {
+                    $errorCount++;
+                    // Skip errors about table already exists
+                }
             }
-            jsonResponse(['success' => true, 'message' => 'ตรวจสอบและเตรียมโครงสร้างฐานข้อมูลเรียบร้อยแล้ว (ไม่รวมการลบข้อมูลเดิม)']);
+
+            // [CRITICAL FIX] Specifically add missing 'position' column if it doesn't exist
+            try {
+                $pdo->exec("ALTER TABLE teachers ADD `position` VARCHAR(255) DEFAULT NULL AFTER `name` ");
+            } catch (Exception $e) {
+                // Column likely already exists
+            }
+
+            jsonResponse(['success' => true, 'message' => "อัพเดทโครงสร้างฐานข้อมูลเสร็จสิ้น (สำเร็จ: $successCount, ข้าม/ผิดพลาด: $errorCount)"]);
         } catch (Exception $e) {
             jsonResponse(['error' => $e->getMessage()], 500);
         }

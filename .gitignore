@@ -6,4 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
-api/config.php
+# api/config.php (Commented out to allow Git tracking for hosting sync)
+

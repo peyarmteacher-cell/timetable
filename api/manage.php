@@ -129,8 +129,15 @@ switch ($action) {
         if ($role === 'super_admin') {
             $stmt_sub = $pdo->query("SELECT COUNT(*) as total FROM subjects");
             $stmt_tea = $pdo->query("SELECT COUNT(*) as total FROM teachers");
-            $stmt_room = $pdo->query("SELECT COUNT(*) as total FROM rooms");
-            $stmt_cls = $pdo->query("SELECT COUNT(*) as total FROM classrooms");
+            $stmt_sch = $pdo->query("SELECT COUNT(*) as total FROM schools");
+            $stmt_usr = $pdo->query("SELECT COUNT(*) as total FROM users");
+            
+            jsonResponse([
+                'subjects' => $stmt_sub->fetch()['total'],
+                'teachers' => $stmt_tea->fetch()['total'],
+                'schools' => $stmt_sch->fetch()['total'],
+                'users' => $stmt_usr->fetch()['total']
+            ]);
         } else {
             $stmt_sub = $pdo->prepare("SELECT COUNT(*) as total FROM subjects WHERE school_id = ?");
             $stmt_sub->execute([$school_id]);
@@ -140,14 +147,14 @@ switch ($action) {
             $stmt_room->execute([$school_id]);
             $stmt_cls = $pdo->prepare("SELECT COUNT(*) as total FROM classrooms WHERE school_id = ?");
             $stmt_cls->execute([$school_id]);
+            
+            jsonResponse([
+                'subjects' => $stmt_sub->fetch()['total'],
+                'teachers' => $stmt_tea->fetch()['total'],
+                'rooms' => $stmt_room->fetch()['total'],
+                'classrooms' => $stmt_cls->fetch()['total']
+            ]);
         }
-        
-        jsonResponse([
-            'subjects' => ($role === 'super_admin' ? $stmt_sub->fetch()['total'] : $stmt_sub->fetch()['total']),
-            'teachers' => ($role === 'super_admin' ? $stmt_tea->fetch()['total'] : $stmt_tea->fetch()['total']),
-            'rooms' => ($role === 'super_admin' ? $stmt_room->fetch()['total'] : $stmt_room->fetch()['total']),
-            'classrooms' => ($role === 'super_admin' ? $stmt_cls->fetch()['total'] : $stmt_cls->fetch()['total'])
-        ]);
         break;
 
     // SUPER ADMIN - SCHOOLS

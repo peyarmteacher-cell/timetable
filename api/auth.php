@@ -29,8 +29,32 @@ if (isset($_GET['action'])) {
 
     if ($action === 'register') {
         $data = json_decode(file_get_contents('php://input'), true);
-        // ประมวลผลการลงทะเบียน
-        jsonResponse(['message' => 'ลงทะเบียนสำเร็จ']);
+        $school_name = $data['school_name'];
+        $school_code = $data['school_code'];
+        $name = $data['name'];
+        $username = $data['username'];
+        $password = $data['password'];
+
+        $pdo->beginTransaction();
+        try {
+            // 1. Create School
+            $stmt = $pdo->prepare("INSERT INTO schools (name, code, is_approved) VALUES (?, ?, 0)");
+            $stmt->execute([$school_name, $school_code]);
+            $school_id = $pdo->lastInsertId();
+
+            // 2. Create Admin User for this School
+            $stmt = $pdo->prepare("INSERT INTO users (username, password, name, role, school_id, is_approved) VALUES (?, ?, ?, 'admin', ?, 0)");
+            $stmt->execute([$username, $password, $name, $school_id]);
+
+            $pdo->commit();
+            jsonResponse(['message' => 'ลงทะเบียนสำเร็จ! กรุณารอการอนุมัติจาก Super Admin']);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            if ($e->getCode() == 23000) {
+                jsonResponse(['error' => 'รหัสโรงเรียนหรือชื่อผู้ใช้นี้มีอยู่ในระบบแล้ว'], 400);
+            }
+            jsonResponse(['error' => $e->getMessage()], 500);
+        }
     }
 }
 ?>

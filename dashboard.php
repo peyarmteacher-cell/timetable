@@ -17,7 +17,40 @@
         </div>
     </header>
 
-    <!-- Stats Grid -->
+    <?php if (hasRole('super_admin')): ?>
+    <!-- Stats Grid (Super Admin) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div class="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6 group hover:shadow-xl transition-all">
+            <div class="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"><i data-lucide="book-open" size="28"></i></div>
+            <div>
+                <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">รายวิชาทั้งหมด</p>
+                <p id="stat-subjects" class="text-3xl font-black text-slate-900">0</p>
+            </div>
+        </div>
+        <div class="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6 group hover:shadow-xl transition-all">
+            <div class="h-16 w-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"><i data-lucide="users" size="28"></i></div>
+            <div>
+                <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">บุคลากรครูทั้งหมด</p>
+                <p id="stat-teachers" class="text-3xl font-black text-slate-900">0</p>
+            </div>
+        </div>
+        <div class="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6 group hover:shadow-xl transition-all border-amber-100 bg-amber-50/10">
+            <div class="h-16 w-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"><i data-lucide="school" size="28"></i></div>
+            <div>
+                <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">โรงเรียนทั้งหมด</p>
+                <p id="stat-schools" class="text-3xl font-black text-amber-600">0</p>
+            </div>
+        </div>
+        <div class="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6 group hover:shadow-xl transition-all border-purple-100 bg-purple-50/10">
+            <div class="h-16 w-16 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"><i data-lucide="user-cog" size="28"></i></div>
+            <div>
+                <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">สมาชิกทั้งหมด</p>
+                <p id="stat-users" class="text-3xl font-black text-purple-600">0</p>
+            </div>
+        </div>
+    </div>
+    <?php else: ?>
+    <!-- Stats Grid (School Admin) -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         <div class="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-6 group hover:shadow-xl hover:shadow-blue-500/5 transition-all">
             <div class="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"><i data-lucide="book-open" size="28"></i></div>
@@ -48,6 +81,7 @@
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Super Admin Section -->
     <?php if (hasRole('super_admin')): ?>
@@ -111,53 +145,67 @@
     async function loadStats() {
         const res = await fetch('api/manage.php?action=get_stats');
         const stats = await res.json();
-        document.getElementById('stat-subjects').innerText = stats.subjects;
-        document.getElementById('stat-teachers').innerText = stats.teachers;
-        document.getElementById('stat-rooms').innerText = stats.rooms;
-        document.getElementById('stat-classrooms').innerText = stats.classrooms;
+        
+        if (document.getElementById('stat-subjects')) document.getElementById('stat-subjects').innerText = stats.subjects;
+        if (document.getElementById('stat-teachers')) document.getElementById('stat-teachers').innerText = stats.teachers;
+        if (document.getElementById('stat-rooms')) document.getElementById('stat-rooms').innerText = stats.rooms;
+        if (document.getElementById('stat-classrooms')) document.getElementById('stat-classrooms').innerText = stats.classrooms;
+        if (document.getElementById('stat-schools')) document.getElementById('stat-schools').innerText = stats.schools;
+        if (document.getElementById('stat-users')) document.getElementById('stat-users').innerText = stats.users;
     }
 
     async function loadApprovals() {
         if (!document.getElementById('schoolApprovalList')) return;
-        const res = await fetch('api/manage.php?action=admin_schools_list');
-        const schools = await res.json();
-        const list = document.getElementById('schoolApprovalList');
-        
-        let pendingCount = 0;
-        list.innerHTML = schools.map(s => {
-            if(!s.is_approved) pendingCount++;
-            return `
-            <tr class="hover:bg-slate-50/50 transition-colors not-italic text-slate-700">
-                <td class="p-5">
-                    <p class="font-bold text-slate-900">${s.name}</p>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">${s.affiliation || 'ไม่ระบุสังกัด'}</p>
-                </td>
-                <td class="p-5 font-mono text-sm font-bold text-blue-600">${s.code}</td>
-                <td class="p-5 text-sm font-medium text-slate-500">${new Date(s.created_at).toLocaleDateString('th-TH')}</td>
-                <td class="p-5">
-                    ${s.is_approved ? 
-                        '<span class="bg-green-100 text-green-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-green-200">อนุมัติแล้ว</span>' : 
-                        '<span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-amber-200">ระงับ/รออนุมัติ</span>'
-                    }
-                </td>
-                <td class="p-5 text-right flex justify-end gap-2">
-                    ${!s.is_approved ? 
-                        `<button onclick="approveSchool(${s.id})" class="bg-blue-600 text-white text-[11px] font-black px-3 py-2 rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-95">อนุมัติ</button>` : 
-                        `<button onclick="toggleSchoolStatus(${s.id})" class="bg-amber-500 text-white text-[11px] font-black px-3 py-2 rounded-xl hover:bg-amber-600 shadow-md transition-all active:scale-95">ระงับใช้งาน</button>`
-                    }
-                    <button onclick="deleteSchool(${s.id})" class="bg-red-50 text-red-600 text-[11px] font-black px-3 py-2 rounded-xl hover:bg-red-100 shadow-sm transition-all active:scale-95">ลบ</button>
-                </td>
-            </tr>
-            `;
-        }).join('');
+        try {
+            const res = await fetch('api/manage.php?action=admin_schools_list');
+            const schools = await res.json();
+            const list = document.getElementById('schoolApprovalList');
+            
+            if (!schools || schools.length === 0) {
+                list.innerHTML = '<tr><td colspan="5" class="p-10 text-center text-slate-400 italic font-medium">ยังไม่มีข้อมูลโรงเรียนในระบบ</td></tr>';
+                document.getElementById('pendingBadge').classList.add('hidden');
+                return;
+            }
 
-        if(pendingCount > 0) {
-            document.getElementById('pendingBadge').classList.remove('hidden');
-            document.getElementById('pendingBadge').innerText = `${pendingCount} รายการใหม่`;
-        } else {
-            document.getElementById('pendingBadge').classList.add('hidden');
+            let pendingCount = 0;
+            list.innerHTML = schools.map(s => {
+                if(!s.is_approved) pendingCount++;
+                return `
+                <tr class="hover:bg-slate-50/50 transition-colors not-italic text-slate-700">
+                    <td class="p-5">
+                        <p class="font-bold text-slate-900">${s.name}</p>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">${s.affiliation || 'ไม่ระบุสังกัด'}</p>
+                    </td>
+                    <td class="p-5 font-mono text-sm font-bold text-blue-600">${s.code}</td>
+                    <td class="p-5 text-sm font-medium text-slate-500">${new Date(s.created_at).toLocaleDateString('th-TH')}</td>
+                    <td class="p-5">
+                        ${s.is_approved ? 
+                            '<span class="bg-green-100 text-green-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-green-200">อนุมัติแล้ว</span>' : 
+                            '<span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-amber-200">รอดำเนินการ</span>'
+                        }
+                    </td>
+                    <td class="p-5 text-right flex justify-end gap-2">
+                        ${!s.is_approved ? 
+                            `<button onclick="approveSchool(${s.id})" class="bg-blue-600 text-white text-[11px] font-black px-3 py-2 rounded-xl hover:bg-blue-700 shadow-md transition-all active:scale-95">อนุมัติ</button>` : 
+                            `<button onclick="toggleSchoolStatus(${s.id})" class="bg-amber-500 text-white text-[11px] font-black px-3 py-2 rounded-xl hover:bg-amber-600 shadow-md transition-all active:scale-95">ระงับใช้งาน</button>`
+                        }
+                        <button onclick="deleteSchool(${s.id})" class="bg-red-50 text-red-600 text-[11px] font-black px-3 py-2 rounded-xl hover:bg-red-100 shadow-sm transition-all active:scale-95">ลบ</button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+
+            if(pendingCount > 0) {
+                document.getElementById('pendingBadge').classList.remove('hidden');
+                document.getElementById('pendingBadge').innerText = `${pendingCount} โรงเรียนใหม่`;
+            } else {
+                document.getElementById('pendingBadge').classList.add('hidden');
+            }
+            lucide.createIcons();
+        } catch (error) {
+            console.error('Error loading approvals:', error);
+            document.getElementById('schoolApprovalList').innerHTML = '<tr><td colspan="5" class="p-10 text-center text-red-500 font-bold">เกิดข้อผิดพลาดในการดึงข้อมูล</td></tr>';
         }
-        lucide.createIcons();
     }
 
     async function approveSchool(id) {

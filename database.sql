@@ -5,6 +5,20 @@ SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
 
+-- Disable foreign key checks during drop to avoid constraint errors
+SET foreign_key_checks = 0;
+
+DROP TABLE IF EXISTS `timetable`;
+DROP TABLE IF EXISTS `classrooms`;
+DROP TABLE IF EXISTS `rooms`;
+DROP TABLE IF EXISTS `teachers`;
+DROP TABLE IF EXISTS `subjects`;
+DROP TABLE IF EXISTS `users`;
+DROP TABLE IF EXISTS `schools`;
+
+-- Re-enable foreign key checks
+SET foreign_key_checks = 1;
+
 -- --------------------------------------------------------
 
 --
@@ -141,6 +155,6 @@ CREATE TABLE `timetable` (
 -- Default Super Admin (password: 123456)
 --
 INSERT INTO `users` (`username`, `password`, `name`, `role`, `is_approved`) VALUES
-('admin', '$2y$10$O9w.Z2Z.6Ff5vU4d9G6v7.p97u9X7Hl1Z7l1Z7l1Z7l1Z7l1Z7l1', 'Super Admin', 'super_admin', 1);
+('admin', '123456', 'Super Admin', 'super_admin', 1);
 
 COMMIT;

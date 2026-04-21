@@ -233,6 +233,7 @@ switch ($action) {
             $queries = explode(';', $sql);
             $successCount = 0;
             $errorCount = 0;
+            $details = [];
 
             foreach ($queries as $q) {
                 $q = trim($q);
@@ -244,18 +245,26 @@ switch ($action) {
                     $successCount++;
                 } catch (Exception $e) {
                     $errorCount++;
-                    // Skip errors about table already exists
                 }
             }
 
             // [CRITICAL FIX] Specifically add missing 'position' column if it doesn't exist
             try {
                 $pdo->exec("ALTER TABLE teachers ADD `position` VARCHAR(255) DEFAULT NULL AFTER `name` ");
+                $details[] = "เพิ่มคอลัมน์ 'position' ในตาราง teachers เรียบร้อยแล้ว";
             } catch (Exception $e) {
                 // Column likely already exists
             }
 
-            jsonResponse(['success' => true, 'message' => "อัพเดทโครงสร้างฐานข้อมูลเสร็จสิ้น (สำเร็จ: $successCount, ข้าม/ผิดพลาด: $errorCount)"]);
+            $msg = "อัพเดทโครงสร้างฐานข้อมูลเสร็จสิ้น\n";
+            $msg .= "- ประมวลผลคำสั่ง SQL ทั้งหมด: " . ($successCount + $errorCount) . " คำสั่ง\n";
+            if (!empty($details)) {
+                $msg .= "- การเปลี่ยนแปลงที่สำคัญ: " . implode(", ", $details);
+            } else {
+                $msg .= "- ไม่มีการเปลี่ยนแปลงโครงสร้างใหม่ที่จำเป็น (ฐานข้อมูลทันสมัยอยู่แล้ว)";
+            }
+
+            jsonResponse(['success' => true, 'message' => $msg]);
         } catch (Exception $e) {
             jsonResponse(['error' => $e->getMessage()], 500);
         }

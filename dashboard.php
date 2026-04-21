@@ -239,22 +239,51 @@
     async function autoUpdateDb(event) {
         const btn = event.currentTarget;
         const icon = btn.querySelector('i');
-        if(!confirm('คุณต้องการอัพเดทโครงสร้างตารางฐานข้อมูลอัตโนมัติใช่หรือไม่? (ระบบจะตรวจสอบและสร้างตารางที่ขาดหายไป)')) return;
+        
+        const confirmResult = await Swal.fire({
+            title: 'อัพเดทฐานข้อมูล?',
+            text: 'ระบบจะตรวจสอบและสร้างตารางหรือคอลัมน์ที่ขาดหายไปในโฮสติ้งให้อัตโนมัติ',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#2563eb',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ยืนยันอัพเดท',
+            cancelButtonText: 'ยกเลิก',
+            background: '#ffffff',
+            borderRadius: '2rem'
+        });
+
+        if(!confirmResult.isConfirmed) return;
 
         btn.classList.add('opacity-50', 'pointer-events-none');
         icon.classList.add('animate-spin');
         
+        // Show loading
+        Swal.fire({
+            title: 'กำลังประมวลผล...',
+            html: 'กรุณารอสักครู่ ระบบกำลังสื่อสารกับฐานข้อมูล MySQL',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
         try {
             const res = await fetch('api/manage.php?action=system_db_update');
             const data = await res.json();
             
             if(data.success) {
-                showToast(data.message, 'success');
+                await Swal.fire({
+                    title: 'อัพเดทเสร็จสมบูรณ์',
+                    html: `<div class="text-left bg-slate-50 p-4 rounded-2xl text-sm font-medium text-slate-600 whitespace-pre-line">${data.message}</div>`,
+                    icon: 'success',
+                    confirmButtonColor: '#2563eb'
+                });
             } else {
-                showToast('การอัพเดทล้มเหลว: ' + data.error, 'error');
+                Swal.fire('การอัพเดทล้มเหลว', data.error, 'error');
             }
         } catch (e) {
-            showToast('พบข้อผิดพลาดในการเชื่อมต่อ', 'error');
+            Swal.fire('พบข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
         } finally {
             btn.classList.remove('opacity-50', 'pointer-events-none');
             icon.classList.remove('animate-spin');

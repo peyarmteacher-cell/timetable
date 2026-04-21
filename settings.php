@@ -245,18 +245,36 @@
     function addPeriodRow(num = '', start = '', end = '') {
         const container = document.getElementById('periodRows');
         const rowCount = container.children.length + 1;
+        
+        // Clean time string from DB (HH:MM:SS -> HH:MM)
+        const cleanStart = start ? start.substring(0, 5) : '';
+        const cleanEnd = end ? end.substring(0, 5) : '';
+
         const tr = document.createElement('tr');
         tr.className = 'period-row';
         tr.innerHTML = `
             <td class="py-3"><input type="number" class="p-num w-16 px-2 py-1 border rounded" value="${num || rowCount}"></td>
-            <td class="py-3"><input type="text" class="p-start w-24 px-2 py-1 border rounded" value="${start}" placeholder="08:30"></td>
-            <td class="py-3"><input type="text" class="p-end w-24 px-2 py-1 border rounded" value="${end}" placeholder="09:20"></td>
+            <td class="py-3"><input type="text" class="p-start w-24 px-2 py-1 border rounded" value="${cleanStart}" placeholder="08:30" oninput="autoFormatTime(this)" maxlength="5"></td>
+            <td class="py-3"><input type="text" class="p-end w-24 px-2 py-1 border rounded" value="${cleanEnd}" placeholder="09:20" oninput="autoFormatTime(this)" maxlength="5"></td>
             <td class="py-3 text-right">
                 <button onclick="this.closest('tr').remove()" class="text-slate-300 hover:text-red-500 transition-colors"><i data-lucide="minus-circle" size="18"></i></button>
             </td>
         `;
         container.appendChild(tr);
         lucide.createIcons();
+    }
+
+    function autoFormatTime(input) {
+        // Remove everything except numbers
+        let val = input.value.replace(/\D/g, '');
+        if (val.length > 4) val = val.substring(0, 4);
+        
+        // Add colon
+        if (val.length >= 3) {
+            val = val.substring(0, 2) + ':' + val.substring(2);
+        }
+        
+        input.value = val;
     }
 
     async function savePeriods() {

@@ -2,9 +2,11 @@
 require_once 'config.php';
 
 $action = $_GET['action'] ?? '';
+$user_id = $_SESSION['user_id'] ?? 0;
 $school_id = $_SESSION['school_id'] ?? 0;
+$role = $_SESSION['role'] ?? '';
 
-if (!$school_id && $action !== 'get_school_info') {
+if (!$user_id) {
     jsonResponse(['error' => 'กรุณาเข้าสู่ระบบ'], 401);
 }
 
@@ -19,6 +21,7 @@ switch ($action) {
         jsonResponse($stmt->fetchAll());
         break;
     case 'subject_add':
+        if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
         $stmt = $pdo->prepare("INSERT INTO subjects (code, name, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$data['code'], $data['name'], $data['hours'], $data['is_double'], $school_id]);
         jsonResponse(['success' => true]);
@@ -36,6 +39,7 @@ switch ($action) {
         jsonResponse($stmt->fetchAll());
         break;
     case 'teacher_add':
+        if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
         $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
         $stmt->execute([$data['name'], $data['position'] ?? '', $school_id]);
         jsonResponse(['success' => true]);
@@ -43,6 +47,7 @@ switch ($action) {
 
     // BULK IMPORTS
     case 'bulk_import':
+        if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
         $type = $_GET['type'] ?? '';
         $items = $data['items'] ?? [];
         if (empty($items)) jsonResponse(['error' => 'No items found'], 400);
@@ -90,6 +95,7 @@ switch ($action) {
         jsonResponse($stmt->fetchAll());
         break;
     case 'room_add':
+        if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
         $stmt = $pdo->prepare("INSERT INTO rooms (name, school_id) VALUES (?, ?)");
         $stmt->execute([$data['name'], $school_id]);
         jsonResponse(['success' => true]);
@@ -107,6 +113,7 @@ switch ($action) {
         jsonResponse($stmt->fetchAll());
         break;
     case 'classroom_add':
+        if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
         $stmt = $pdo->prepare("INSERT INTO classrooms (name, level, school_id) VALUES (?, ?, ?)");
         $stmt->execute([$data['name'], $data['level'], $school_id]);
         jsonResponse(['success' => true]);
@@ -119,20 +126,27 @@ switch ($action) {
 
     // DASHBOARD STATS
     case 'get_stats':
-        $stmt_sub = $pdo->prepare("SELECT COUNT(*) as total FROM subjects WHERE school_id = ?");
-        $stmt_sub->execute([$school_id]);
-        $stmt_tea = $pdo->prepare("SELECT COUNT(*) as total FROM teachers WHERE school_id = ?");
-        $stmt_tea->execute([$school_id]);
-        $stmt_room = $pdo->prepare("SELECT COUNT(*) as total FROM rooms WHERE school_id = ?");
-        $stmt_room->execute([$school_id]);
-        $stmt_cls = $pdo->prepare("SELECT COUNT(*) as total FROM classrooms WHERE school_id = ?");
-        $stmt_cls->execute([$school_id]);
+        if ($role === 'super_admin') {
+            $stmt_sub = $pdo->query("SELECT COUNT(*) as total FROM subjects");
+            $stmt_tea = $pdo->query("SELECT COUNT(*) as total FROM teachers");
+            $stmt_room = $pdo->query("SELECT COUNT(*) as total FROM rooms");
+            $stmt_cls = $pdo->query("SELECT COUNT(*) as total FROM classrooms");
+        } else {
+            $stmt_sub = $pdo->prepare("SELECT COUNT(*) as total FROM subjects WHERE school_id = ?");
+            $stmt_sub->execute([$school_id]);
+            $stmt_tea = $pdo->prepare("SELECT COUNT(*) as total FROM teachers WHERE school_id = ?");
+            $stmt_tea->execute([$school_id]);
+            $stmt_room = $pdo->prepare("SELECT COUNT(*) as total FROM rooms WHERE school_id = ?");
+            $stmt_room->execute([$school_id]);
+            $stmt_cls = $pdo->prepare("SELECT COUNT(*) as total FROM classrooms WHERE school_id = ?");
+            $stmt_cls->execute([$school_id]);
+        }
         
         jsonResponse([
-            'subjects' => $stmt_sub->fetch()['total'],
-            'teachers' => $stmt_tea->fetch()['total'],
-            'rooms' => $stmt_room->fetch()['total'],
-            'classrooms' => $stmt_cls->fetch()['total']
+            'subjects' => ($role === 'super_admin' ? $stmt_sub->fetch()['total'] : $stmt_sub->fetch()['total']),
+            'teachers' => ($role === 'super_admin' ? $stmt_tea->fetch()['total'] : $stmt_tea->fetch()['total']),
+            'rooms' => ($role === 'super_admin' ? $stmt_room->fetch()['total'] : $stmt_room->fetch()['total']),
+            'classrooms' => ($role === 'super_admin' ? $stmt_cls->fetch()['total'] : $stmt_cls->fetch()['total'])
         ]);
         break;
 

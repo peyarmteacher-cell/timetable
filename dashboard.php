@@ -8,7 +8,7 @@
             <p class="text-slate-500 font-medium">ยินดีต้อนรับสู่ระบบจัดการตารางสอนอัจฉริยะ</p>
         </div>
         <div class="flex gap-4">
-            <button onclick="updateDb()" class="bg-white border-2 border-slate-100 text-slate-700 px-5 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-50 hover:border-slate-200 transition-all shadow-sm">
+            <button onclick="updateDb(event)" class="bg-white border-2 border-slate-100 text-slate-700 px-5 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-50 hover:border-slate-200 transition-all shadow-sm">
                 <i data-lucide="database" size="18" class="text-blue-500"></i> ซิงค์ MySQL
             </button>
             <a href="timetable.php" class="bg-blue-600 text-white px-6 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30">
@@ -183,7 +183,7 @@
         }
     }
 
-    async function updateDb() {
+    async function updateDb(event) {
         const btn = event.currentTarget;
         const icon = btn.querySelector('i');
         

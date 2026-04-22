@@ -585,6 +585,12 @@ try {
         case 'auto_generate_timetable':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
             
+            // 0. Ensure schema is ready (outside transaction to avoid implicit commits)
+            try {
+                $pdo->exec("ALTER TABLE periods ADD COLUMN type VARCHAR(20) DEFAULT 'normal'");
+                $pdo->exec("ALTER TABLE subjects ADD COLUMN hours INT DEFAULT 2");
+            } catch (Exception $e) { /* Tables or columns may already exist */ }
+
             try {
                 $pdo->beginTransaction();
                 
@@ -593,21 +599,11 @@ try {
                 $stmt->execute([$school_id]);
                 
                 // 2. Load teaching loads
-                // Ensure 'hours' column exists in subjects table
-                try {
-                    $pdo->exec("ALTER TABLE subjects ADD COLUMN hours INT DEFAULT 2");
-                } catch (Exception $e) { /* Column already exists */ }
-
                 $stmt = $pdo->prepare("SELECT * FROM teaching_load WHERE school_id = ?");
                 $stmt->execute([$school_id]);
                 $loads = $stmt->fetchAll();
                 
                 // 3. Load periods to know which ones are available (type='normal')
-                // Ensure 'type' column exists
-                try {
-                    $pdo->exec("ALTER TABLE periods ADD COLUMN type VARCHAR(20) DEFAULT 'normal'");
-                } catch (Exception $e) { /* Column might already exist */ }
-
                 $stmt = $pdo->prepare("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC");
                 $stmt->execute([$school_id]);
                 $allPeriods = $stmt->fetchAll();

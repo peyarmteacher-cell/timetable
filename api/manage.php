@@ -582,17 +582,85 @@ try {
             jsonResponse($stmt->fetchAll());
             break;
 
-        case 'get_room_timetable':
+        case 'auto_generate_timetable':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
-            $room_id = $_GET['room_id'];
-            $stmt = $pdo->prepare("SELECT t.*, s.name as subject_name, s.code as subject_code, tea.name as teacher_name, c.level as classroom_level, c.name as classroom_name 
-                                    FROM timetable t
-                                    JOIN subjects s ON t.subject_id = s.id
-                                    JOIN teachers tea ON t.teacher_id = tea.id
-                                    JOIN classrooms c ON t.classroom_id = c.id
-                                    WHERE t.room_id = ? AND t.school_id = ?");
-            $stmt->execute([$room_id, $school_id]);
-            jsonResponse($stmt->fetchAll());
+            
+            try {
+                $pdo->beginTransaction();
+                
+                // 1. Clear existing timetable for this school
+                $stmt = $pdo->prepare("DELETE FROM timetable WHERE school_id = ?");
+                $stmt->execute([$school_id]);
+                
+                // 2. Load teaching loads
+                $stmt = $pdo->prepare("SELECT * FROM teaching_load WHERE school_id = ?");
+                $stmt->execute([$school_id]);
+                $loads = $stmt->fetchAll();
+                
+                // 3. Load periods to know which ones are available (type='normal')
+                $stmt = $pdo->prepare("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC");
+                $stmt->execute([$school_id]);
+                $allPeriods = $stmt->fetchAll();
+                $availablePeriodNums = array_map(function($p) { return $p['period_number']; }, array_filter($allPeriods, function($p) { return $p['type'] == 'normal'; }));
+                
+                if (empty($availablePeriodNums)) {
+                    throw new Exception("ยังไม่ได้ตั้งค่าช่วงเวลาปกติ (Normal) ในเมนูตั้งค่าพื้นฐาน");
+                }
+
+                $assignedCount = 0;
+                $days = [1, 2, 3, 4, 5]; // Mon-Fri
+                
+                // Keep track of busy slots: [day][period][teacher_id] or [day][period][classroom_id]
+                $busyTeachers = [];
+                $busyClassrooms = [];
+                
+                // Simple Greedy Algorithm
+                foreach ($loads as $load) {
+                    // Get hours per week (default 2 if not specified elsewhere)
+                    // We'll fetch the actual value from subjects table for better accuracy
+                    $stmtSubject = $pdo->prepare("SELECT hours FROM subjects WHERE id = ?");
+                    $stmtSubject->execute([$load['subject_id']]);
+                    $subject = $stmtSubject->fetch();
+                    $hoursToSchedule = $subject ? (int)$subject['hours'] : 2;
+
+                    for ($h = 0; $h < $hoursToSchedule; $h++) {
+                        $scheduled = false;
+                        foreach ($days as $day) {
+                            foreach ($availablePeriodNums as $period) {
+                                $teacherKey = "{$day}-{$period}-{$load['teacher_id']}";
+                                $classroomKey = "{$day}-{$period}-{$load['classroom_id']}";
+                                
+                                if (!isset($busyTeachers[$teacherKey]) && !isset($busyClassrooms[$classroomKey])) {
+                                    // Slot is free!
+                                    $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                                    $stmt->execute([
+                                        $school_id, 
+                                        $load['teacher_id'], 
+                                        $load['subject_id'], 
+                                        $load['classroom_id'], 
+                                        $load['room_id'], 
+                                        $day, 
+                                        $period
+                                    ]);
+                                    
+                                    $busyTeachers[$teacherKey] = true;
+                                    $busyClassrooms[$classroomKey] = true;
+                                    $assignedCount++;
+                                    $scheduled = true;
+                                    break;
+                                }
+                            }
+                            if ($scheduled) break;
+                        }
+                    }
+                }
+                
+                $pdo->commit();
+                jsonResponse(['success' => true, 'count' => $assignedCount]);
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                jsonResponse(['error' => $e->getMessage()], 500);
+            }
             break;
 
         default:

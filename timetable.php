@@ -35,25 +35,32 @@
     <div class="flex-1 overflow-auto p-8 bg-slate-50/50">
         <!-- Assign Mode -->
         <div id="section-assign" class="space-y-6">
-            <div class="grid grid-cols-12 gap-8">
-                <!-- Teacher List & Selection -->
-                <div class="col-span-4 space-y-4">
-                    <div class="bg-white rounded-2xl shadow-sm border p-6">
-                        <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                            <i data-lucide="users" class="text-blue-600"></i> เลือกคุณครูที่เข้าสอน
-                        </h3>
-                        <div class="relative mb-4">
-                            <i data-lucide="search" size="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                            <input type="text" id="teacherSearch" oninput="filterTeachers()" placeholder="ค้นหาชื่อครู..." class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-100 bg-slate-50 focus:bg-white transition-all outline-none text-sm">
+            <div class="grid grid-cols-12 gap-8 relative">
+                <!-- Teacher List & Selection (Collapsible Toggle) -->
+                <div id="teacherColumn" class="col-span-3 space-y-4 transition-all duration-500 origin-left">
+                    <div class="bg-white rounded-2xl shadow-sm border p-6 sticky top-24">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                                <i data-lucide="users" class="text-blue-600"></i> คุณครู
+                            </h3>
                         </div>
-                        <div id="teacherList" class="space-y-1 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                        <div class="relative mb-4">
+                            <i data-lucide="search" size="14" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                            <input type="text" id="teacherSearch" oninput="filterTeachers()" placeholder="ค้นหา..." class="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-100 bg-slate-50 focus:bg-white transition-all outline-none text-xs">
+                        </div>
+                        <div id="teacherList" class="space-y-1 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                             <!-- Teachers list -->
                         </div>
                     </div>
                 </div>
 
+                <!-- Toggle Sidebar Button -->
+                <button onclick="toggleTeacherList()" class="absolute left-0 top-2 -translate-x-full z-10 bg-white border shadow-sm p-1.5 rounded-l-lg hover:bg-slate-50 transition-all">
+                    <i id="toggleIcon" data-lucide="chevron-left" size="16"></i>
+                </button>
+
                 <!-- Assignment Form -->
-                <div class="col-span-8 space-y-6">
+                <div id="assignContent" class="col-span-9 space-y-6 transition-all duration-500">
                     <div id="assignArea" class="hidden space-y-6">
                         <div class="bg-white rounded-2xl shadow-md border-t-4 border-blue-600 p-8">
                             <div class="flex justify-between items-center mb-8">
@@ -391,30 +398,75 @@
         renderFullTimetable(data);
     }
 
+    // UI UTILS
+    function toggleTeacherList() {
+        const teacherColumn = document.getElementById('teacherColumn');
+        const assignContent = document.getElementById('assignContent');
+        const toggleIcon = document.getElementById('toggleIcon');
+        
+        if (teacherColumn.classList.contains('col-span-3')) {
+            teacherColumn.classList.replace('col-span-3', 'hidden');
+            assignContent.classList.replace('col-span-9', 'col-span-12');
+            toggleIcon.setAttribute('data-lucide', 'chevron-right');
+        } else {
+            teacherColumn.classList.replace('hidden', 'col-span-3');
+            assignContent.classList.replace('col-span-12', 'col-span-9');
+            toggleIcon.setAttribute('data-lucide', 'chevron-left');
+        }
+        lucide.createIcons();
+    }
+
+    function getColorForSubject(code) {
+        if (!code) return 'bg-slate-50 border-slate-100';
+        const colors = [
+            'bg-blue-100 border-blue-200 text-blue-700',
+            'bg-emerald-100 border-emerald-200 text-emerald-700',
+            'bg-amber-100 border-amber-200 text-amber-700',
+            'bg-rose-100 border-rose-200 text-rose-700',
+            'bg-indigo-100 border-indigo-200 text-indigo-700',
+            'bg-violet-100 border-violet-200 text-violet-700',
+            'bg-sky-100 border-sky-200 text-sky-700',
+            'bg-orange-100 border-orange-200 text-orange-700'
+        ];
+        let hash = 0;
+        for (let i = 0; i < code.length; i++) hash = code.charCodeAt(i) + ((hash << 5) - hash);
+        return colors[Math.abs(hash) % colors.length];
+    }
+
     async function autoGenerate() {
-        Swal.fire({
-            title: 'เริ่มการจัดตารางสอนอัตโนมัติ?',
-            text: 'ระบบจะวิเคราะห์ความว่างของครู ห้องเรียน และชั้นเรียนเพื่อให้ได้เวลาที่เหมาะสมที่สุด',
-            icon: 'question',
+        const confirm = await Swal.fire({
+            title: 'ยืนยันจัดตารางอัตโนมัติ?',
+            text: 'ระบบจะนำข้อมูลที่คุณครูกำหนดไว้ลงตารางสอนให้โดยอัตโนมัติ (ข้อมูลเดิมจะถูกแทนที่)',
+            icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'เริ่มจัดตารางทันที',
-            cancelButtonText: 'ยกเลิก'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                Swal.fire({
-                    title: 'กำลังประมวลผล...',
-                    html: 'ระบบอัจฉริยะกำลังจัดวางตารางที่ดีที่สุดให้คุณ',
-                    allowOutsideClick: false,
-                    didOpen: () => { Swal.showLoading(); }
-                });
-                
-                // Placeholder for real algorithm
-                setTimeout(() => {
-                    Swal.fire('สำเร็จ', 'จัดตารางสอนระดับชั้นทั้งหมดเรียบร้อยแล้ว!', 'success');
-                    if (state.viewMode === 'view') loadViewData();
-                }, 2000);
-            }
+            confirmButtonText: 'ยืนยันเริ่มจัดตาราง',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#2563eb'
         });
+
+        if (!confirm.isConfirmed) return;
+
+        try {
+            Swal.fire({
+                title: 'กำลังจัดตารางสอน...',
+                html: 'ระบบกำลังวิเคราะห์ภาระงานและหาพื้นที่ว่างที่เหมาะสมที่สุด',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            const res = await fetch('api/manage.php?action=auto_generate_timetable');
+            const result = await res.json();
+
+            if (result.success) {
+                await Swal.fire('สำเร็จ!', `จัดตารางสอนเรียบร้อยแล้ว จำนวน ${result.count} คาบ`, 'success');
+                if (state.currentTeacherId) selectTeacher(state.currentTeacherId);
+                if (state.viewMode === 'view') loadViewData();
+            } else {
+                Swal.fire('เกิดข้อผิดพลาด', result.error, 'error');
+            }
+        } catch (e) {
+            Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+        }
     }
 
     let timetablePeriods = [];
@@ -435,15 +487,16 @@
         const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'];
         
         let html = `
-            <div class="overflow-x-auto">
-                <table class="w-full border-collapse min-w-[1000px]">
+            <div class="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-sm bg-white">
+                <table class="w-full border-collapse min-w-[1200px]">
                     <thead>
                         <tr class="bg-slate-50 border-b">
-                            <th class="p-4 border-r w-32 font-bold text-slate-400 text-xs uppercase text-center">วัน / คาบ</th>
+                            <th class="p-6 border-r w-32 font-black text-slate-400 text-[10px] uppercase text-center bg-slate-50/80 sticky left-0 z-20 backdrop-blur-sm">วัน / คาบ</th>
                             ${timetablePeriods.map(p => `
-                                <th class="p-4 border-r text-center">
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase">คาบ ${p.period_number}</p>
-                                    <p class="text-sm font-bold text-slate-700">${p.start_time.substring(0, 5)}</p>
+                                <th class="p-4 border-r border-slate-100 text-center ${p.type !== 'normal' ? 'bg-slate-100/50' : 'bg-slate-50/30'}">
+                                    <p class="text-[9px] font-black text-slate-400 uppercase mb-0.5 tracking-tighter">คาบ ${p.period_number}</p>
+                                    <p class="text-xs font-black text-slate-700">${p.start_time.substring(0, 5)}</p>
+                                    ${p.type !== 'normal' ? `<span class="inline-block mt-1 px-2 py-0.5 rounded-full bg-white text-[8px] font-bold text-slate-400 uppercase tracking-widest">${p.type === 'break' ? 'พัก' : 'กิจกรรม'}</span>` : ''}
                                 </th>
                             `).join('')}
                         </tr>
@@ -453,24 +506,36 @@
 
         days.forEach((dayName, dayIdx) => {
             const currentDayNumber = dayIdx + 1;
-            html += `<tr class="border-b last:border-b-0">
-                <td class="bg-slate-50 border-r p-4 font-black text-slate-700 text-center text-sm">${dayName}</td>`;
+            html += `<tr class="border-b last:border-b-0 group">
+                <td class="bg-slate-50 border-r border-slate-100 p-6 font-black text-slate-700 text-center text-sm sticky left-0 z-20 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.02)] transition-colors group-hover:bg-slate-100">${dayName}</td>`;
             
             timetablePeriods.forEach(p => {
                 const entry = data.find(d => d.day == currentDayNumber && d.period == p.period_number);
-                html += `
-                    <td class="border-r last:border-r-0 p-2 min-h-[80px] align-top">
-                        ${entry ? `
-                            <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 h-full text-center shadow-sm">
-                                <p class="text-[10px] font-bold text-blue-600 mb-1 leading-none uppercase">${entry.subject_code}</p>
-                                <p class="text-xs font-black text-slate-900 leading-tight mb-2">${entry.subject_name}</p>
-                                <div class="space-y-1">
-                                    ${state.viewType !== 'teacher' ? `<p class="text-[9px] text-slate-500 font-bold bg-white/50 rounded py-0.5"><i data-lucide="user" size="8" class="inline"></i> ${entry.teacher_name || '-'}</p>` : ''}
-                                    ${state.viewType !== 'classroom' ? `<p class="text-[9px] text-slate-500 font-bold bg-white/50 rounded py-0.5"><i data-lucide="graduation-cap" size="8" class="inline"></i> ${entry.classroom_level}/${entry.classroom_name}</p>` : ''}
-                                    ${state.viewType !== 'room' ? `<p class="text-[9px] text-slate-500 font-bold bg-white/50 rounded py-0.5"><i data-lucide="map-pin" size="8" class="inline"></i> ${entry.room_name || '-'}</p>` : ''}
-                                </div>
+                
+                let content = '';
+                if (p.type === 'break' || p.type === 'activity') {
+                    content = `<div class="h-full w-full flex flex-col items-center justify-center bg-slate-50/50 opacity-40 grayscale group-hover:opacity-100 transition-all">
+                        <i data-lucide="${p.type === 'break' ? 'coffee' : 'star'}" class="text-slate-300 mb-1" size="14"></i>
+                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">${p.type === 'break' ? 'พักเที่ยง' : 'กิจกรรม'}</span>
+                    </div>`;
+                } else if (entry) {
+                    const colorClasses = getColorForSubject(entry.subject_code);
+                    content = `
+                        <div class="${colorClasses} rounded-2xl p-4 h-full shadow-sm border transition-transform hover:scale-[1.02] cursor-default">
+                            <p class="text-[9px] font-black opacity-60 mb-1 leading-none uppercase tracking-widest">${entry.subject_code}</p>
+                            <p class="text-sm font-black leading-tight mb-3">${entry.subject_name}</p>
+                            <div class="space-y-1.5 border-t border-current/10 pt-2">
+                                ${state.viewType !== 'teacher' ? `<p class="text-[10px] font-bold opacity-70 flex items-center gap-1.5"><i data-lucide="user" size="10"></i> ${entry.teacher_name || '-'}</p>` : ''}
+                                ${state.viewType !== 'classroom' ? `<p class="text-[10px] font-bold opacity-70 flex items-center gap-1.5"><i data-lucide="graduation-cap" size="10"></i> ${entry.classroom_level}/${entry.classroom_name}</p>` : ''}
+                                ${state.viewType !== 'room' ? `<p class="text-[10px] font-bold opacity-70 flex items-center gap-1.5"><i data-lucide="map-pin" size="10"></i> ${entry.room_name || '-'}</p>` : ''}
                             </div>
-                        ` : ''}
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <td class="border-r border-slate-50 last:border-r-0 p-2 min-w-[160px] h-[140px] align-top bg-white transition-colors group-hover:bg-slate-50/20">
+                        ${content}
                     </td>
                 `;
             });
@@ -488,25 +553,34 @@
         const data = await res.json();
         
         const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์'];
-        let html = '<div class="bg-slate-50 p-2 font-bold text-[10px] text-slate-400 text-center flex items-center justify-center border-b border-r border-slate-200 uppercase">วัน/คาบ</div>';
-        for(let i=1; i<=timetablePeriods.length; i++) {
-            html += `<div class="bg-slate-50 p-2 text-center text-[10px] font-bold text-slate-400 border-b border-r last:border-r-0 border-slate-200 uppercase">คาบ ${i}</div>`;
-        }
+        let html = '<div class="bg-slate-50 p-3 font-black text-[9px] text-slate-400 text-center flex items-center justify-center border-b border-r border-slate-200 uppercase tracking-widest">วัน/คาบ</div>';
+        
+        timetablePeriods.forEach(p => {
+            html += `<div class="bg-slate-50 p-3 text-center text-[9px] font-black text-slate-400 border-b border-r last:border-r-0 border-slate-200 uppercase tracking-widest">คาบ ${p.period_number}</div>`;
+        });
         
         days.forEach((dayName, dayIdx) => {
             const currentDayNumber = dayIdx + 1;
-            html += `<div class="bg-slate-50 p-2 text-center text-[10px] font-bold text-slate-500 flex items-center justify-center border-b border-r border-slate-200">${dayName}</div>`;
+            html += `<div class="bg-slate-50 p-3 text-center text-[10px] font-black text-slate-600 flex items-center justify-center border-b border-r border-slate-200 transition-colors hover:bg-slate-100">${dayName}</div>`;
             timetablePeriods.forEach(p => {
                 const entry = data.find(d => d.day == currentDayNumber && d.period == p.period_number);
-                html += `
-                    <div class="bg-white p-1 min-h-[35px] border-b border-r last:border-r-0 border-slate-100 flex items-center justify-center">
-                        ${entry ? `<div class="text-[9px] font-black text-blue-600 bg-blue-50 w-full h-full flex items-center justify-center rounded border border-blue-100">${entry.subject_code}</div>` : ''}
-                    </div>
-                `;
+                
+                let cellContent = '';
+                if (p.type === 'break' || p.type === 'activity') {
+                    cellContent = `<div class="w-full h-full bg-slate-50/50 flex items-center justify-center opacity-30 grayscale"><i data-lucide="${p.type === 'break' ? 'coffee' : 'star'}" size="10" class="text-slate-400"></i></div>`;
+                } else if (entry) {
+                    const colorClasses = getColorForSubject(entry.subject_code);
+                    cellContent = `<div class="${colorClasses} w-full h-full flex items-center justify-center rounded-lg border text-[10px] font-black shadow-sm">${entry.subject_code}</div>`;
+                }
+
+                html += `<div class="bg-white p-1 min-h-[45px] border-b border-r last:border-r-0 border-slate-100">
+                    ${cellContent}
+                </div>`;
             });
         });
         mini.innerHTML = html;
         mini.style.gridTemplateColumns = `80px repeat(${timetablePeriods.length}, 1fr)`;
+        lucide.createIcons();
     }
 
     init();

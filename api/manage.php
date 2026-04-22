@@ -598,12 +598,22 @@ try {
                 $loads = $stmt->fetchAll();
                 
                 // 3. Load periods to know which ones are available (type='normal')
+                // Ensure 'type' column exists
+                try {
+                    $pdo->exec("ALTER TABLE periods ADD COLUMN type VARCHAR(20) DEFAULT 'normal'");
+                } catch (Exception $e) { /* Column might already exist */ }
+
                 $stmt = $pdo->prepare("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC");
                 $stmt->execute([$school_id]);
                 $allPeriods = $stmt->fetchAll();
-                $availablePeriodNums = array_map(function($p) { return $p['period_number']; }, array_filter($allPeriods, function($p) { 
-                    return strtolower(trim($p['type'])) == 'normal'; 
-                }));
+                
+                $availablePeriodNums = [];
+                foreach ($allPeriods as $p) {
+                    $pType = isset($p['type']) ? strtolower(trim($p['type'])) : 'normal';
+                    if ($pType == 'normal' || $pType == '') {
+                        $availablePeriodNums[] = $p['period_number'];
+                    }
+                }
                 
                 if (empty($availablePeriodNums)) {
                     throw new Exception("ยังไม่ได้ตั้งค่าช่วงเวลาปกติ (Normal) ในเมนูตั้งค่าพื้นฐาน");

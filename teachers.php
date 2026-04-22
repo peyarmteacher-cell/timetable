@@ -71,20 +71,33 @@
 <script>
     lucide.createIcons();
     async function fetchTeachers() {
-        const res = await fetch('api/manage.php?action=teachers_list');
-        const data = await res.json();
-        const list = document.getElementById('teacherList');
-        list.innerHTML = data.map((item, index) => `
-            <tr class="hover:bg-slate-50 transition-colors">
-                <td class="p-4 text-slate-400 font-mono text-sm">${index + 1}</td>
-                <td class="p-4 font-bold text-slate-900">${item.name}</td>
-                <td class="p-4 font-medium text-slate-500">${item.position || '-'}</td>
-                <td class="p-4 text-right">
-                    <button onclick="deleteTeacher(${item.id})" class="text-red-400 hover:text-red-600 transition-colors p-2"><i data-lucide="trash-2" size="18"></i></button>
-                </td>
-            </tr>
-        `).join('');
-        lucide.createIcons();
+        try {
+            const res = await fetch('api/manage.php?action=teachers_list');
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Failed to fetch teachers');
+            }
+            const data = await res.json();
+            const list = document.getElementById('teacherList');
+            if (data.length === 0) {
+                list.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-400 italic">ยังไม่มีข้อมูลบุคลากรครู</td></tr>';
+                return;
+            }
+            list.innerHTML = data.map((item, index) => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="p-4 text-slate-400 font-mono text-sm">${index + 1}</td>
+                    <td class="p-4 font-bold text-slate-900">${item.name}</td>
+                    <td class="p-4 font-medium text-slate-500">${item.position || '-'}</td>
+                    <td class="p-4 text-right">
+                        <button onclick="deleteTeacher(${item.id})" class="text-red-400 hover:text-red-600 transition-colors p-2"><i data-lucide="trash-2" size="18"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        } catch (error) {
+            console.error('Error fetching teachers:', error);
+            document.getElementById('teacherList').innerHTML = `<tr><td colspan="4" class="p-8 text-center text-red-500 font-bold">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        }
     }
     function openModal() { document.getElementById('teacherModal').classList.remove('hidden'); }
     function closeModal() { document.getElementById('teacherModal').classList.add('hidden'); document.getElementById('teacherForm').reset(); }

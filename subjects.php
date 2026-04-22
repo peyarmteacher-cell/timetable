@@ -83,10 +83,19 @@
     lucide.createIcons();
     
     async function fetchSubjects() {
-        const res = await fetch('api/manage.php?action=subjects_list');
-        const data = await res.json();
-        const list = document.getElementById('subjectList');
-        list.innerHTML = data.map(item => `
+        try {
+            const res = await fetch('api/manage.php?action=subjects_list');
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Failed to fetch subjects');
+            }
+            const data = await res.json();
+            const list = document.getElementById('subjectList');
+            if (data.length === 0) {
+                list.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">ยังไม่มีข้อมูลรายวิชา</td></tr>';
+                return;
+            }
+            list.innerHTML = data.map(item => `
             <tr class="hover:bg-slate-50 transition-colors">
                 <td class="p-4 font-bold text-slate-500 text-xs">${item.level || '-'}</td>
                 <td class="p-4 font-bold text-blue-600">${item.code}</td>
@@ -106,6 +115,10 @@
         const levels = [...new Set(data.filter(i => i.level).map(i => i.level))];
         const datalist = document.getElementById('levelSuggestions');
         datalist.innerHTML = levels.map(lv => `<option value="${lv}">`).join('');
+        } catch (error) {
+            console.error('Error fetching subjects:', error);
+            document.getElementById('subjectList').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-500 font-bold">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+        }
     }
 
     function openModal() {

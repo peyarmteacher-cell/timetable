@@ -17,9 +17,20 @@ try {
     switch ($action) {
         // SUBJECTS
         case 'subjects_list':
-            $stmt = $pdo->prepare("SELECT * FROM subjects WHERE school_id = ? ORDER BY level, code ASC");
-            $stmt->execute([$school_id]);
-            jsonResponse($stmt->fetchAll());
+            try {
+                $stmt = $pdo->prepare("SELECT * FROM subjects WHERE school_id = ? ORDER BY level, code ASC");
+                $stmt->execute([$school_id]);
+                jsonResponse($stmt->fetchAll());
+            } catch (PDOException $e) {
+                if ($e->getCode() == '42S22') { // Column level missing
+                    try {
+                        $pdo->exec("ALTER TABLE subjects ADD `level` VARCHAR(20) DEFAULT NULL AFTER `is_double` ");
+                    } catch (Exception $err) {}
+                    $stmt = $pdo->prepare("SELECT * FROM subjects WHERE school_id = ? ORDER BY code ASC");
+                    $stmt->execute([$school_id]);
+                    jsonResponse($stmt->fetchAll());
+                } else { throw $e; }
+            }
             break;
         case 'subject_add':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
@@ -66,37 +77,31 @@ try {
             $items = $data['items'] ?? [];
             if (empty($items)) jsonResponse(['error' => 'No items found'], 400);
 
+            // 1. Column Check (Pre-Transaction to avoid implicit commit)
+            if ($type === 'subjects') {
+                $check = $pdo->query("SHOW COLUMNS FROM subjects LIKE 'level'")->fetch();
+                if (!$check) {
+                    $pdo->exec("ALTER TABLE subjects ADD `level` VARCHAR(20) DEFAULT NULL AFTER `is_double` ");
+                }
+            } else if ($type === 'teachers') {
+                $check = $pdo->query("SHOW COLUMNS FROM teachers LIKE 'position'")->fetch();
+                if (!$check) {
+                    $pdo->exec("ALTER TABLE teachers ADD `position` VARCHAR(255) DEFAULT NULL AFTER `name` ");
+                }
+            }
+
+            // 2. Start Transaction
             $pdo->beginTransaction();
             try {
                 if ($type === 'subjects') {
-                    try {
-                        $stmt = $pdo->prepare("INSERT INTO subjects (code, name, level, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?, ?)");
-                        foreach ($items as $item) {
-                            $stmt->execute([$item['code'], $item['name'], $item['level'] ?? '', $item['hours'], $item['is_double'] ? 1 : 0, $school_id]);
-                        }
-                    } catch (PDOException $e) {
-                        if ($e->getCode() == '42S22') {
-                            $pdo->exec("ALTER TABLE subjects ADD `level` VARCHAR(20) DEFAULT NULL AFTER `is_double` ");
-                            $stmt = $pdo->prepare("INSERT INTO subjects (code, name, level, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?, ?)");
-                            foreach ($items as $item) {
-                                $stmt->execute([$item['code'], $item['name'], $item['level'] ?? '', $item['hours'], $item['is_double'] ? 1 : 0, $school_id]);
-                            }
-                        } else { throw $e; }
+                    $stmt = $pdo->prepare("INSERT INTO subjects (code, name, level, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?, ?)");
+                    foreach ($items as $item) {
+                        $stmt->execute([$item['code'], $item['name'], $item['level'] ?? '', $item['hours'], $item['is_double'] ? 1 : 0, $school_id]);
                     }
                 } else if ($type === 'teachers') {
-                    try {
-                        $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
-                        foreach ($items as $item) {
-                            $stmt->execute([$item['name'], $item['position'] ?? '', $school_id]);
-                        }
-                    } catch (PDOException $e) {
-                        if ($e->getCode() == '42S22') {
-                            $pdo->exec("ALTER TABLE teachers ADD `position` VARCHAR(255) DEFAULT NULL AFTER `name` ");
-                            $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
-                            foreach ($items as $item) {
-                                $stmt->execute([$item['name'], $item['position'] ?? '', $school_id]);
-                            }
-                        } else { throw $e; }
+                    $stmt = $pdo->prepare("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)");
+                    foreach ($items as $item) {
+                        $stmt->execute([$item['name'], $item['position'] ?? '', $school_id]);
                     }
                 } else if ($type === 'rooms') {
                     $stmt = $pdo->prepare("INSERT INTO rooms (name, school_id) VALUES (?, ?)");
@@ -112,8 +117,8 @@ try {
                 $pdo->commit();
                 jsonResponse(['success' => true, 'count' => count($items)]);
             } catch (Exception $e) {
-                $pdo->rollBack();
-                jsonResponse(['error' => $e->getMessage()], 500);
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                jsonResponse(['error' => 'Import Error: ' . $e->getMessage()], 500);
             }
             break;
         case 'teacher_delete':
@@ -226,8 +231,8 @@ try {
                 $pdo->commit();
                 jsonResponse(['success' => true]);
             } catch (Exception $e) {
-                $pdo->rollBack();
-                jsonResponse(['error' => $e->getMessage()], 500);
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                jsonResponse(['error' => 'Database Error: ' . $e->getMessage()], 500);
             }
             break;
 

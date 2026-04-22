@@ -593,6 +593,11 @@ try {
                 $stmt->execute([$school_id]);
                 
                 // 2. Load teaching loads
+                // Ensure 'hours' column exists in subjects table
+                try {
+                    $pdo->exec("ALTER TABLE subjects ADD COLUMN hours INT DEFAULT 2");
+                } catch (Exception $e) { /* Column already exists */ }
+
                 $stmt = $pdo->prepare("SELECT * FROM teaching_load WHERE school_id = ?");
                 $stmt->execute([$school_id]);
                 $loads = $stmt->fetchAll();

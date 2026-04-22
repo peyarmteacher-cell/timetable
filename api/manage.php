@@ -310,7 +310,9 @@ try {
                         UNIQUE KEY `school_id` (`school_id`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
                     $details[] = "ตรวจสอบตาราง settings";
-                    
+                } catch (Exception $e) {}
+
+                try {
                     $pdo->exec("CREATE TABLE IF NOT EXISTS `periods` (
                         `id` int(11) NOT NULL AUTO_INCREMENT,
                         `school_id` int(11) NOT NULL,
@@ -320,7 +322,9 @@ try {
                         PRIMARY KEY (`id`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
                     $details[] = "ตรวจสอบตาราง periods";
+                } catch (Exception $e) {}
 
+                try {
                     $pdo->exec("CREATE TABLE IF NOT EXISTS `special_periods` (
                         `id` int(11) NOT NULL AUTO_INCREMENT,
                         `school_id` int(11) NOT NULL,
@@ -331,6 +335,8 @@ try {
                         PRIMARY KEY (`id`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
                     $details[] = "ตรวจสอบตาราง special_periods";
+                } catch (Exception $e) {}
+
                 try {
                     $pdo->exec("CREATE TABLE IF NOT EXISTS `teaching_load` (
                         `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -342,16 +348,13 @@ try {
                         PRIMARY KEY (`id`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
                     $details[] = "ตรวจสอบตาราง teaching_load";
+                } catch (Exception $e) {}
 
-                    // Add level to subjects if not exists
-                    try {
-                        $pdo->exec("ALTER TABLE subjects ADD `level` VARCHAR(20) DEFAULT NULL AFTER `name` ");
-                        $details[] = "เพิ่มคอลัมน์ 'level' ในตาราง subjects";
-                    } catch (Exception $e) {}
-
-                } catch (Exception $e) {
-                    $details[] = "พบข้อผิดพลาดบางส่วน: " . $e->getMessage();
-                }
+                // Add level to subjects if not exists
+                try {
+                    $pdo->exec("ALTER TABLE subjects ADD `level` VARCHAR(20) DEFAULT NULL AFTER `name` ");
+                    $details[] = "เพิ่มคอลัมน์ 'level' ในตาราง subjects";
+                } catch (Exception $e) {}
 
                 $msg = "อัพเดทโครงสร้างฐานข้อมูลเสร็จสิ้น\n";
                 $msg .= "- ประมวลผลคำสั่ง SQL ทั้งหมด: " . ($successCount + $errorCount) . " คำสั่ง\n";

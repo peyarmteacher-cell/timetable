@@ -146,12 +146,15 @@
 
             const items = jsonData.map(row => {
                 if (type === 'teachers') {
+                    const name = row["ชื่อ-นามสกุล"] || row["ชื่อ"] || row["Name"] || "";
+                    if (!name) return null;
                     return {
-                        name: row["ชื่อ-นามสกุล"],
-                        position: row["ตำแหน่ง"]
+                        name: name,
+                        position: row["ตำแหน่ง"] || row["Position"] || ""
                     };
                 }
-            });
+                return null;
+            }).filter(item => item !== null);
 
             if (items.length > 0) {
                 const res = await fetch(`api/manage.php?action=bulk_import&type=${type}`, {

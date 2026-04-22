@@ -126,7 +126,11 @@
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
-            const items = jsonData.map(row => ({ name: row["ชื่อห้อง"] }));
+            const items = jsonData.map(row => {
+                const name = row["ชื่อห้อง"] || row["Name"] || row["Room"] || "";
+                if (!name) return null;
+                return { name };
+            }).filter(item => item !== null);
 
             if (items.length > 0) {
                 const res = await fetch(`api/manage.php?action=bulk_import&type=${type}`, {

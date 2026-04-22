@@ -145,10 +145,14 @@
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
-            const items = jsonData.map(row => ({ 
-                level: row["ระดับชั้น"],
-                name: row["เลขห้อง/ทับ"] 
-            }));
+            const items = jsonData.map(row => {
+                const name = row["เลขห้อง/ทับ"] || row["ชื่อห้อง"] || row["Room"] || row["Class"] || "";
+                if (!name) return null;
+                return { 
+                    level: row["ระดับชั้น"] || row["Level"] || "",
+                    name: name 
+                };
+            }).filter(item => item !== null);
 
             if (items.length > 0) {
                 const res = await fetch(`api/manage.php?action=bulk_import&type=${type}`, {

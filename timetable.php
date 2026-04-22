@@ -522,15 +522,12 @@
                     </div>`;
                 } else if (entry) {
                     const colorClasses = getColorForSubject(entry.subject_code);
+                    const teacherFirstName = entry.teacher_name ? 'ครู' + entry.teacher_name.split(' ')[0] : '-';
                     content = `
-                        <div class="${colorClasses} rounded-2xl p-4 h-full shadow-sm border transition-transform hover:scale-[1.02] cursor-default">
-                            <p class="text-[9px] font-black opacity-60 mb-1 leading-none uppercase tracking-widest">${entry.subject_code}</p>
-                            <p class="text-sm font-black leading-tight mb-3">${entry.subject_name}</p>
-                            <div class="space-y-1.5 border-t border-current/10 pt-2">
-                                ${state.viewType !== 'teacher' ? `<p class="text-[10px] font-bold opacity-70 flex items-center gap-1.5"><i data-lucide="user" size="10"></i> ${entry.teacher_name || '-'}</p>` : ''}
-                                ${state.viewType !== 'classroom' ? `<p class="text-[10px] font-bold opacity-70 flex items-center gap-1.5"><i data-lucide="graduation-cap" size="10"></i> ${entry.classroom_level}/${entry.classroom_name}</p>` : ''}
-                                ${state.viewType !== 'room' ? `<p class="text-[10px] font-bold opacity-70 flex items-center gap-1.5"><i data-lucide="map-pin" size="10"></i> ${entry.room_name || '-'}</p>` : ''}
-                            </div>
+                        <div class="${colorClasses} rounded-2xl p-3 h-full shadow-sm border transition-transform hover:scale-[1.02] cursor-default flex flex-col justify-center items-center text-center">
+                            <p class="text-xs font-black mb-1 uppercase tracking-wider">${entry.subject_code}</p>
+                            <p class="text-[10px] font-bold opacity-80 mb-1 leading-tight">${teacherFirstName}</p>
+                            <p class="text-[10px] font-bold opacity-60 leading-none">ห้อง ${entry.room_name || '-'}</p>
                         </div>
                     `;
                 }

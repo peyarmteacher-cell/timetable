@@ -623,14 +623,13 @@ try {
                 $assignedCount = 0;
                 $days = [1, 2, 3, 4, 5]; // Mon-Fri
                 
-                // Keep track of busy slots: [day][period][teacher_id] or [day][period][classroom_id]
-                $busyTeachers = [];
-                $busyClassrooms = [];
+                // Keep track of busy slots
+                $busyTeachers = [];   // [day][period][teacher_id]
+                $busyClassrooms = []; // [day][period][classroom_id]
+                $subjectUsedToday = []; // [day][classroom_id][subject_id] - To prevent same subject on same day
                 
-                // Simple Greedy Algorithm
+                // Simple Greedy Algorithm with Day Distribution
                 foreach ($loads as $load) {
-                    // Get hours per week (default 2 if not specified elsewhere)
-                    // We'll fetch the actual value from subjects table for better accuracy
                     $stmtSubject = $pdo->prepare("SELECT hours FROM subjects WHERE id = ?");
                     $stmtSubject->execute([$load['subject_id']]);
                     $subject = $stmtSubject->fetch();
@@ -638,13 +637,20 @@ try {
 
                     for ($h = 0; $h < $hoursToSchedule; $h++) {
                         $scheduled = false;
+                        
+                        // Try to find a slot, prioritizing different days for each hour
                         foreach ($days as $day) {
+                            $scKey = "{$day}-{$load['classroom_id']}-{$load['subject_id']}";
+                            
+                            // Skip this day if subject already assigned today (unless we have no other choice)
+                            // But usually for 5 hrs/week, distributing 1 per day is best
+                            if (isset($subjectUsedToday[$scKey])) continue;
+
                             foreach ($availablePeriodNums as $period) {
                                 $teacherKey = "{$day}-{$period}-{$load['teacher_id']}";
                                 $classroomKey = "{$day}-{$period}-{$load['classroom_id']}";
                                 
                                 if (!isset($busyTeachers[$teacherKey]) && !isset($busyClassrooms[$classroomKey])) {
-                                    // Slot is free!
                                     $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
                                     $stmt->execute([
                                         $school_id, 
@@ -658,12 +664,33 @@ try {
                                     
                                     $busyTeachers[$teacherKey] = true;
                                     $busyClassrooms[$classroomKey] = true;
+                                    $subjectUsedToday[$scKey] = true;
                                     $assignedCount++;
                                     $scheduled = true;
                                     break;
                                 }
                             }
                             if ($scheduled) break;
+                        }
+                        
+                        // If still not scheduled (maybe all days have this subject), try again without subjectUsedToday check
+                        if (!$scheduled) {
+                            foreach ($days as $day) {
+                                foreach ($availablePeriodNums as $period) {
+                                    $teacherKey = "{$day}-{$period}-{$load['teacher_id']}";
+                                    $classroomKey = "{$day}-{$period}-{$load['classroom_id']}";
+                                    if (!isset($busyTeachers[$teacherKey]) && !isset($busyClassrooms[$classroomKey])) {
+                                        $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $period]);
+                                        $busyTeachers[$teacherKey] = true;
+                                        $busyClassrooms[$classroomKey] = true;
+                                        $assignedCount++;
+                                        $scheduled = true;
+                                        break;
+                                    }
+                                }
+                                if ($scheduled) break;
+                            }
                         }
                     }
                 }

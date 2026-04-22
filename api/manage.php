@@ -518,9 +518,27 @@ try {
 
         case 'teaching_load_add':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
-            $stmt = $pdo->prepare("INSERT INTO teaching_load (school_id, teacher_id, subject_id, classroom_id, room_id) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$school_id, $data['teacher_id'], $data['subject_id'], $data['classroom_id'], $data['room_id']]);
-            jsonResponse(['success' => true]);
+            try {
+                $stmt = $pdo->prepare("INSERT INTO teaching_load (school_id, teacher_id, subject_id, classroom_id, room_id) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$school_id, $data['teacher_id'], $data['subject_id'], $data['classroom_id'], $data['room_id']]);
+                jsonResponse(['success' => true]);
+            } catch (PDOException $e) {
+                if ($e->getCode() == '42S02') { // Table not found
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS `teaching_load` (
+                        `id` int(11) NOT NULL AUTO_INCREMENT,
+                        `school_id` int(11) NOT NULL,
+                        `teacher_id` int(11) NOT NULL,
+                        `subject_id` int(11) NOT NULL,
+                        `classroom_id` int(11) NOT NULL,
+                        `room_id` int(11) DEFAULT NULL,
+                        PRIMARY KEY (`id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                    
+                    $stmt = $pdo->prepare("INSERT INTO teaching_load (school_id, teacher_id, subject_id, classroom_id, room_id) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$school_id, $data['teacher_id'], $data['subject_id'], $data['classroom_id'], $data['room_id']]);
+                    jsonResponse(['success' => true]);
+                } else { throw $e; }
+            }
             break;
 
         case 'teaching_load_delete':

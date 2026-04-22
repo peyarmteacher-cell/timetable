@@ -299,19 +299,38 @@
             teacher_id: fd.get('teacher_id'),
             classroom_id: fd.get('classroom_id'),
             subject_id: fd.get('subject_id'),
-            room_id: fd.get('room_id')
+            room_id: fd.get('room_id') || null
         };
 
-        const res = await fetch('api/manage.php?action=teaching_load_add', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-        const result = await res.json();
-        if (result.success) {
-            Swal.fire('สำเร็จ', 'มอบหมายงานสอนเรียบร้อยแล้ว', 'success');
-            closeAddLoadModal();
-            loadTeachingLoad();
+        if (!data.teacher_id || !data.classroom_id || !data.subject_id) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกชั้นเรียนและวิชาให้ครบถ้วน', 'warning');
+            return;
+        }
+
+        try {
+            Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            
+            const res = await fetch('api/manage.php?action=teaching_load_add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            const result = await res.json();
+            if (result.success) {
+                await Swal.fire({
+                    title: 'บันทึกเรียบร้อย!',
+                    text: 'ข้อมูลการสอนของคุณครูได้รับการอัปเดตแล้ว',
+                    icon: 'success',
+                    confirmButtonColor: '#2563eb'
+                });
+                closeAddLoadModal();
+                loadTeachingLoad();
+            } else {
+                Swal.fire('ผิดพลาด', result.error || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+            }
+        } catch (error) {
+            Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
         }
     };
 

@@ -209,7 +209,43 @@
                 return null;
             }).filter(item => item !== null);
 
-            if (items.length > 0) {
+            if (items.length === 0) {
+                Swal.fire('ไม่พบข้อมูล', 'ไม่พบรายชื่อวิชาที่ถูกต้องในไฟล์ Excel', 'warning');
+                return;
+            }
+
+            // Preview List
+            const listHtml = items.slice(0, 5).map(i => `<li>[${i.code}] ${i.name}</li>`).join('');
+            const moreText = items.length > 5 ? `<p class="text-[10px] text-slate-400 mt-1 italic font-kanit">...และอีก ${items.length - 5} รายการ</p>` : '';
+
+            const confirm = await Swal.fire({
+                title: 'ยืนยันการนำเข้าข้อมูล?',
+                html: `
+                    <div class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-100 italic">
+                        <p class="font-bold mb-2 text-blue-600 text-sm font-kanit not-italic">ตรวจพบข้อมูล ${items.length} รายการ:</p>
+                        <ul class="text-xs space-y-1.5 list-disc pl-5 text-slate-600 font-medium font-kanit not-italic">
+                            ${listHtml}
+                        </ul>
+                        ${moreText}
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยันนำเข้า',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#2563eb',
+                cancelButtonColor: '#64748b',
+                background: '#ffffff',
+                borderRadius: '2rem'
+            });
+
+            if (!confirm.isConfirmed) {
+                event.target.value = '';
+                return;
+            }
+
+            try {
+                Swal.fire({ title: 'กำลังนำเข้า...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 const res = await fetch(`api/manage.php?action=bulk_import&type=${type}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -217,11 +253,18 @@
                 });
                 const result = await res.json();
                 if (result.success) {
-                    alert(`นำเข้าสำเร็จ ${result.count} รายการ`);
+                    await Swal.fire({
+                        title: 'นำเข้าสำเร็จ!',
+                        text: `เพิ่มวิชาแล้ว ${result.count} รายการ`,
+                        icon: 'success',
+                        confirmButtonColor: '#2563eb'
+                    });
                     fetchSubjects();
                 } else {
-                    alert('เกิดข้อผิดพลาด: ' + result.error);
+                    Swal.fire('ผิดพลาด', result.error, 'error');
                 }
+            } catch (error) {
+                Swal.fire('ผิดพลาด', 'ติดต่อเซิร์ฟเวอร์ไม่ได้', 'error');
             }
             event.target.value = ""; // Reset
         };

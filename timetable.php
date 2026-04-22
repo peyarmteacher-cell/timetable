@@ -5,7 +5,11 @@
 <div class="flex-1 flex flex-col h-screen overflow-hidden">
     <!-- Action Header -->
     <header class="bg-white border-b h-20 flex items-center justify-between px-8 sticky top-0 z-50">
-        <div class="flex items-center gap-6">
+        <div class="flex items-center gap-4">
+            <!-- Main Sidebar Toggle -->
+            <button onclick="toggleMainSidebar()" class="p-2 hover:bg-slate-50 rounded-xl border border-slate-100 transition-all text-slate-500 mr-2" title="พับ/แสดงเมนูหลัก">
+                <i id="mainSidebarIcon" data-lucide="panel-left-close" size="20"></i>
+            </button>
             <h1 class="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">จัดการตารางสอน</h1>
             <div class="h-8 w-px bg-slate-200"></div>
             
@@ -36,8 +40,8 @@
         <!-- Assign Mode -->
         <div id="section-assign" class="space-y-6">
             <div class="grid grid-cols-12 gap-8 relative">
-                <!-- Teacher List & Selection (Collapsible Toggle) -->
-                <div id="teacherColumn" class="col-span-3 space-y-4 transition-all duration-500 origin-left">
+                <!-- Teacher List & Selection -->
+                <div id="teacherColumn" class="col-span-3 space-y-4">
                     <div class="bg-white rounded-2xl shadow-sm border p-6 sticky top-24">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="font-bold text-slate-900 flex items-center gap-2">
@@ -54,13 +58,8 @@
                     </div>
                 </div>
 
-                <!-- Toggle Sidebar Button -->
-                <button onclick="toggleTeacherList()" class="absolute left-0 top-2 -translate-x-full z-10 bg-white border shadow-sm p-1.5 rounded-l-lg hover:bg-slate-50 transition-all">
-                    <i id="toggleIcon" data-lucide="chevron-left" size="16"></i>
-                </button>
-
                 <!-- Assignment Form -->
-                <div id="assignContent" class="col-span-9 space-y-6 transition-all duration-500">
+                <div id="assignContent" class="col-span-9 space-y-6">
                     <div id="assignArea" class="hidden space-y-6">
                         <div class="bg-white rounded-2xl shadow-md border-t-4 border-blue-600 p-8">
                             <div class="flex justify-between items-center mb-8">
@@ -399,21 +398,24 @@
     }
 
     // UI UTILS
-    function toggleTeacherList() {
-        const teacherColumn = document.getElementById('teacherColumn');
-        const assignContent = document.getElementById('assignContent');
-        const toggleIcon = document.getElementById('toggleIcon');
+    function toggleMainSidebar() {
+        const sidebar = document.querySelector('aside.w-64') || document.querySelector('nav + aside') || document.querySelector('aside');
+        const content = document.querySelector('.flex-1.flex.flex-col');
         
-        if (teacherColumn.classList.contains('col-span-3')) {
-            teacherColumn.classList.replace('col-span-3', 'hidden');
-            assignContent.classList.replace('col-span-9', 'col-span-12');
-            toggleIcon.setAttribute('data-lucide', 'chevron-right');
-        } else {
-            teacherColumn.classList.replace('hidden', 'col-span-3');
-            assignContent.classList.replace('col-span-12', 'col-span-9');
-            toggleIcon.setAttribute('data-lucide', 'chevron-left');
+        if (sidebar) {
+            sidebar.classList.toggle('hidden');
+            if (sidebar.classList.contains('hidden')) {
+                content.classList.remove('h-screen');
+                content.classList.add('min-h-screen', 'w-full');
+            } else {
+                content.classList.add('h-screen');
+            }
         }
-        lucide.createIcons();
+    }
+
+    function toggleTeacherList() {
+        // We will keep teachers visible but let user collapse the MAIN sidebar for more space
+        toggleMainSidebar();
     }
 
     function getColorForSubject(code) {

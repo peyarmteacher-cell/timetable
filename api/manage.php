@@ -601,7 +601,9 @@ try {
                 $stmt = $pdo->prepare("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC");
                 $stmt->execute([$school_id]);
                 $allPeriods = $stmt->fetchAll();
-                $availablePeriodNums = array_map(function($p) { return $p['period_number']; }, array_filter($allPeriods, function($p) { return $p['type'] == 'normal'; }));
+                $availablePeriodNums = array_map(function($p) { return $p['period_number']; }, array_filter($allPeriods, function($p) { 
+                    return strtolower(trim($p['type'])) == 'normal'; 
+                }));
                 
                 if (empty($availablePeriodNums)) {
                     throw new Exception("ยังไม่ได้ตั้งค่าช่วงเวลาปกติ (Normal) ในเมนูตั้งค่าพื้นฐาน");

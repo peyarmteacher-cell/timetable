@@ -82,7 +82,7 @@
                                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">กำหนดวิชา คาบเรียน และห้องเรียนที่ใช้</p>
                             </div>
                         </div>
-                        <button onclick="openAddLoadModal()" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/10 flex items-center gap-2 uppercase tracking-widest">
+                        <button onclick="showAddLoadForm()" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/10 flex items-center gap-2 uppercase tracking-widest">
                             <i data-lucide="plus-circle" size="16"></i> เพิ่มภาระงานใหม่
                         </button>
                     </div>
@@ -703,22 +703,10 @@
     }
 
     async function autoGenerate() {
-        const confirm = await Swal.fire({
-            title: 'ยืนยันจัดตารางอัตโนมัติ?',
-            text: 'ระบบจะนำข้อมูลที่คุณครูกำหนดไว้ลงตารางสอนให้โดยอัตโนมัติ (ข้อมูลเดิมจะถูกแทนที่)',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'ยืนยันเริ่มจัดตาราง',
-            cancelButtonText: 'ยกเลิก',
-            confirmButtonColor: '#2563eb'
-        });
-
-        if (!confirm.isConfirmed) return;
-
         try {
             Swal.fire({
                 title: 'กำลังจัดตารางสอน...',
-                html: 'ระบบกำลังวิเคราะห์ภาระงานและหาพื้นที่ว่างที่เหมาะสมที่สุด',
+                html: 'ระบบกำลังวิเคราะห์ภาระงานและหาพื้นที่ว่างที่เหมาะสมที่สุดสำหรับคุณครูทุกคน',
                 allowOutsideClick: false,
                 didOpen: () => Swal.showLoading()
             });

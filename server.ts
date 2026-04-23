@@ -332,110 +332,116 @@ async function startServer() {
           res.json({ success: true, message: 'ฐานข้อมูล SQLite เป็นปัจจุบันที่สุดแล้ว' });
           break;
         case 'auto_generate_timetable':
-          // Ported Logic from manage.php
-          await db.run("DELETE FROM timetable WHERE school_id = ?", [school_id]);
-          const loads = await db.all("SELECT * FROM teaching_load WHERE school_id = ?", [school_id]);
-          const allPs = await db.all("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC", [school_id]);
-          const normalPs = allPs.filter(p => p.type === 'normal');
-          
-          let busyT = new Set();
-          let busyC = new Set();
-          let subUsedDay = new Set();
-          let assigned = 0;
-          const days = [1, 2, 3, 4, 5];
+          try {
+            await db.run("DELETE FROM timetable WHERE school_id = ?", [school_id]);
+            const loads = await db.all("SELECT * FROM teaching_load WHERE school_id = ?", [school_id]);
+            const allPs = await db.all("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC", [school_id]);
+            const normalPs = allPs.filter(p => p.type === 'normal');
+            
+            let busyT = new Set();
+            let busyC = new Set();
+            let subCountDay = new Map(); // Tracking subject usage per day for each classroom
+            let assigned = 0;
+            const days = [1, 2, 3, 4, 5];
 
-          // 1. Fixed Slots
-          for (const l of loads) {
-            const fixed = JSON.parse(l.fixed_slots || '[]');
-            for (const s of fixed) {
-              await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, s.day, s.period]);
-              busyT.add(`${s.day}-${s.period}-${l.teacher_id}`);
-              busyC.add(`${s.day}-${s.period}-${l.classroom_id}`);
-              subUsedDay.add(`${s.day}-${l.classroom_id}-${l.subject_id}`);
-              assigned++;
+            const getSubCount = (d, c, s) => subCountDay.get(`${d}-${c}-${s}`) || 0;
+            const incSubCount = (d, c, s) => subCountDay.set(`${d}-${c}-${s}`, getSubCount(d, c, s) + 1);
+
+            // 1. Process Fixed Slots first
+            for (const l of loads) {
+              const fixed = JSON.parse(l.fixed_slots || '[]');
+              for (const s of fixed) {
+                await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                  [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, s.day, s.period]);
+                busyT.add(`${s.day}-${s.period}-${l.teacher_id}`);
+                busyC.add(`${s.day}-${s.period}-${l.classroom_id}`);
+                incSubCount(s.day, l.classroom_id, l.subject_id);
+                assigned++;
+              }
+              l.remaining = (l.hours_per_week || 2) - fixed.length;
             }
-            l.remaining = (l.hours_per_week || 2) - fixed.length;
-          }
 
-          // 2. Random Slots
-          const shuffleArray = (arr) => arr.slice().sort(() => Math.random() - 0.5);
-          const shuffledLoads = shuffleArray(loads);
+            // 2. Random Distribution
+            const shuffleArray = (arr) => [...arr].sort(() => Math.random() - 0.5);
+            
+            // Try multiple passes to fill slots
+            for (let pass = 1; pass <= 3; pass++) {
+              const shuffledLoads = shuffleArray(loads);
+              for (const l of shuffledLoads) {
+                if (l.remaining <= 0) continue;
 
-          for (const l of shuffledLoads) {
-            let h = l.remaining;
-            if (h <= 0) continue;
+                const allowed = JSON.parse(l.allowed_slots || '[]');
+                const isDouble = l.period_type === 'double';
+                const maxPerDay = Math.ceil((l.hours_per_week || 2) / 5) + (pass > 1 ? 1 : 0);
 
-            const allowed = JSON.parse(l.allowed_slots || '[]');
-            const isDouble = l.period_type === 'double';
+                const sDays = shuffleArray(days);
+                for (const day of sDays) {
+                  if (l.remaining <= 0) break;
+                  
+                  // Distribution constraint: try not to crowd same subject in one day unless necessary
+                  if (getSubCount(day, l.classroom_id, l.subject_id) >= maxPerDay) continue;
 
-            let attempts = 0;
-            while (h > 0 && attempts < 10) {
-              attempts++;
-              let scheduledThisLoop = 0;
-              const sDays = shuffleArray(days);
+                  for (let i = 0; i < normalPs.length; i++) {
+                    if (l.remaining <= 0) break;
+                    const p1 = normalPs[i].period_number;
 
-              for (const day of sDays) {
-                if (h <= 0) break;
-                if (subUsedDay.has(`${day}-${l.classroom_id}-${l.subject_id}`)) continue;
+                    if (allowed.length > 0 && !allowed.some(a => a.day == day && a.period == p1)) continue;
+                    if (busyT.has(`${day}-${p1}-${l.teacher_id}`) || busyC.has(`${day}-${p1}-${l.classroom_id}`)) continue;
 
-                for (let i = 0; i < normalPs.length; i++) {
-                  if (h <= 0) break;
-                  const p1 = normalPs[i].period_number;
+                    if (isDouble && l.remaining >= 2 && normalPs[i + 1]) {
+                      const p2 = normalPs[i + 1].period_number;
+                      if (p2 === p1 + 1 && !busyT.has(`${day}-${p2}-${l.teacher_id}`) && !busyC.has(`${day}-${p2}-${l.classroom_id}`)) {
+                        if (allowed.length > 0 && !allowed.some(a => a.day == day && a.period == p2)) continue;
 
-                  if (allowed.length > 0 && !allowed.some(a => a.day == day && a.period == p1)) continue;
-                  if (busyT.has(`${day}-${p1}-${l.teacher_id}`) || busyC.has(`${day}-${p1}-${l.classroom_id}`)) continue;
-
-                  if (isDouble && h >= 2 && normalPs[i + 1]) {
-                    const p2 = normalPs[i + 1].period_number;
-                    if (p2 === p1 + 1 && !busyT.has(`${day}-${p2}-${l.teacher_id}`) && !busyC.has(`${day}-${p2}-${l.classroom_id}`)) {
-                      if (allowed.length > 0 && !allowed.some(a => a.day == day && a.period == p2)) continue;
-
+                        await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                          [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p1]);
+                        await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                          [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p2]);
+                        
+                        busyT.add(`${day}-${p1}-${l.teacher_id}`); busyT.add(`${day}-${p2}-${l.teacher_id}`);
+                        busyC.add(`${day}-${p1}-${l.classroom_id}`); busyC.add(`${day}-${p2}-${l.classroom_id}`);
+                        incSubCount(day, l.classroom_id, l.subject_id);
+                        l.remaining -= 2; assigned += 2;
+                        break; // Move to next day
+                      }
+                    } else if (!isDouble || l.remaining === 1 || pass > 2) {
                       await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p1]);
-                      await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p2]);
-                      
-                      busyT.add(`${day}-${p1}-${l.teacher_id}`); busyT.add(`${day}-${p2}-${l.teacher_id}`);
-                      busyC.add(`${day}-${p1}-${l.classroom_id}`); busyC.add(`${day}-${p2}-${l.classroom_id}`);
-                      subUsedDay.add(`${day}-${l.classroom_id}-${l.subject_id}`);
-                      h -= 2; assigned += 2; scheduledThisLoop++;
-                      break;
+                      busyT.add(`${day}-${p1}-${l.teacher_id}`);
+                      busyC.add(`${day}-${p1}-${l.classroom_id}`);
+                      incSubCount(day, l.classroom_id, l.subject_id);
+                      l.remaining -= 1; assigned += 1;
+                      break; // Move to next day
                     }
-                  } else if (!isDouble || h === 1) {
-                    await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                      [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p1]);
-                    busyT.add(`${day}-${p1}-${l.teacher_id}`);
-                    busyC.add(`${day}-${p1}-${l.classroom_id}`);
-                    subUsedDay.add(`${day}-${l.classroom_id}-${l.subject_id}`);
-                    h -= 1; assigned += 1; scheduledThisLoop++;
-                    break;
                   }
                 }
               }
-              if (scheduledThisLoop === 0) break;
             }
-            
-            // Fallback for remaining hours
-            if (h > 0) {
+
+            // 3. Final desperate fallback for anything left
+            for (const l of loads) {
+              if (l.remaining <= 0) continue;
               const sDays = shuffleArray(days);
               for (const day of sDays) {
-                if (h <= 0) break;
-                for (let i = 0; i < normalPs.length; i++) {
-                   if (h <= 0) break;
-                   const p1 = normalPs[i].period_number;
-                   if (busyT.has(`${day}-${p1}-${l.teacher_id}`) || busyC.has(`${day}-${p1}-${l.classroom_id}`)) continue;
-                   
-                   await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                      [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p1]);
-                   busyT.add(`${day}-${p1}-${l.teacher_id}`);
-                   busyC.add(`${day}-${p1}-${l.classroom_id}`);
-                   h -= 1; assigned += 1;
+                if (l.remaining <= 0) break;
+                for (const p of normalPs) {
+                  if (l.remaining <= 0) break;
+                  if (busyT.has(`${day}-${p.period_number}-${l.teacher_id}`) || busyC.has(`${day}-${p.period_number}-${l.classroom_id}`)) continue;
+                  
+                  await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p.period_number]);
+                  busyT.add(`${day}-${p.period_number}-${l.teacher_id}`);
+                  busyC.add(`${day}-${p.period_number}-${l.classroom_id}`);
+                  l.remaining -= 1; assigned += 1;
                 }
               }
             }
+
+            res.json({ success: true, count: assigned });
+          } catch (generateErr) {
+            console.error("Auto Gen Error:", generateErr);
+            res.status(500).json({ success: false, error: generateErr.message });
           }
-          res.json({ success: true, count: assigned });
           break;
         default:
           res.status(400).json({ error: 'Unknown action: ' + action });

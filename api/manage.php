@@ -689,6 +689,51 @@ try {
                     $allowed = json_decode($load['allowed_slots'] ?? '[]', true);
                     $isDouble = ($load['period_type'] === 'double');
 
+                    // If double period, we try to schedule doubles first
+                    if ($isDouble) {
+                        $shuffledDays = $days;
+                        shuffle($shuffledDays);
+                        foreach ($shuffledDays as $day) {
+                            if ($hours < 2) break; // Not enough hours for a double
+                            if (isset($subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"])) continue;
+
+                            for ($i = 0; $i < count($normalPeriods) - 1; $i++) {
+                                $p1 = $normalPeriods[$i]['period_number'];
+                                $p2 = $normalPeriods[$i+1]['period_number'];
+
+                                if ($p2 != $p1 + 1) continue; // Not consecutive
+
+                                // Check allowed
+                                if (!empty($allowed)) {
+                                    $a1 = false; $a2 = false;
+                                    foreach($allowed as $as) {
+                                        if($as['day'] == $day && $as['period'] == $p1) $a1 = true;
+                                        if($as['day'] == $day && $as['period'] == $p2) $a2 = true;
+                                    }
+                                    if (!$a1 || !$a2) continue;
+                                }
+
+                                // Check busy
+                                if (!isset($busyTeachers["$day-$p1-{$load['teacher_id']}"]) && 
+                                    !isset($busyClassrooms["$day-$p1-{$load['classroom_id']}"]) &&
+                                    !isset($busyTeachers["$day-$p2-{$load['teacher_id']}"]) && 
+                                    !isset($busyClassrooms["$day-$p2-{$load['classroom_id']}"])) {
+                                    
+                                    $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                                    $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
+                                    $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p2]);
+                                    
+                                    $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true; $busyTeachers["$day-$p2-{$load['teacher_id']}"] = true;
+                                    $busyClassrooms["$day-$p1-{$load['classroom_id']}"] = true; $busyClassrooms["$day-$p2-{$load['classroom_id']}"] = true;
+                                    $subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"] = true;
+                                    $hours -= 2; $assignedCount += 2;
+                                    break; // Max one block of this subject per day usually
+                                }
+                            }
+                        }
+                    }
+
+                    // Fill remaining hours (singles or leftover doubles)
                     while ($hours > 0) {
                         $scheduledCountThisLoop = 0;
                         $shuffledDays = $days;
@@ -696,95 +741,40 @@ try {
 
                         foreach ($shuffledDays as $day) {
                             if ($hours <= 0) break;
-                            if (isset($subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"])) continue;
+                            
+                            // For single periods, we still prefer non-busy days but might fallback
+                            $dayAlreadyUsed = isset($subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"]);
+                            
+                            $p_shuffled = $normalPeriods;
+                            shuffle($p_shuffled);
 
-                            // MUST NOT shuffle periods here if we need consecutive slots
-                            // Just iterate through the normal periods for this day
-                            for ($i = 0; $i < count($normalPeriods); $i++) {
-                                if ($hours <= 0) break;
-                                $p1 = $normalPeriods[$i]['period_number'];
+                            foreach ($p_shuffled as $p) {
+                                $p_num = $p['period_number'];
                                 
-                                // Constraints check
                                 if (!empty($allowed)) {
                                     $isAllowed = false;
-                                    foreach($allowed as $as) if($as['day'] == $day && $as['period'] == $p1) $isAllowed = true;
+                                    foreach($allowed as $as) if($as['day'] == $day && $as['period'] == $p_num) $isAllowed = true;
                                     if (!$isAllowed) continue;
                                 }
 
-                                if (isset($busyTeachers["$day-$p1-{$load['teacher_id']}"]) || isset($busyClassrooms["$day-$p1-{$load['classroom_id']}"])) continue;
-
-                                if ($isDouble && $hours >= 2 && isset($normalPeriods[$i+1])) {
-                                    $p2 = $normalPeriods[$i+1]['period_number'];
-                                    // Check if p2 is consecutive and not busy
-                                    if ($p2 == $p1 + 1 && !isset($busyTeachers["$day-$p2-{$load['teacher_id']}"]) && !isset($busyClassrooms["$day-$p2-{$load['classroom_id']}"])) {
-                                        // CHECK: Is p2 also allowed if allowed_slots exist?
-                                        if (!empty($allowed)) {
-                                            $p2Allowed = false;
-                                            foreach($allowed as $as) if($as['day'] == $day && $as['period'] == $p2) $p2Allowed = true;
-                                            if (!$p2Allowed) continue;
-                                        }
-
-                                        // INSERT DOUBLE!
+                                if (!isset($busyTeachers["$day-$p_num-{$load['teacher_id']}"]) && 
+                                    !isset($busyClassrooms["$day-$p_num-{$load['classroom_id']}"])) {
+                                    
+                                    // If we haven't used this subject today, OR we have no choice
+                                    if (!$dayAlreadyUsed || $hours > (5 - count($shuffledDays))) {
                                         $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
-                                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p2]);
+                                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p_num]);
                                         
-                                        $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true; $busyTeachers["$day-$p2-{$load['teacher_id']}"] = true;
-                                        $busyClassrooms["$day-$p1-{$load['classroom_id']}"] = true; $busyClassrooms["$day-$p2-{$load['classroom_id']}"] = true;
+                                        $busyTeachers["$day-$p_num-{$load['teacher_id']}"] = true;
+                                        $busyClassrooms["$day-$p_num-{$load['classroom_id']}"] = true;
                                         $subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"] = true;
-                                        $hours -= 2; $assignedCount += 2; $scheduledCountThisLoop++;
-                                        break;
-                                    }
-                                } else if (!$isDouble || $hours == 1) {
-                                    // INSERT SINGLE!
-                                    $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                                    $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
-                                    
-                                    $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true;
-                                    $busyClassrooms["$day-$p1-{$load['classroom_id']}"] = true;
-                                    $subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"] = true;
-                                    $hours -= 1; $assignedCount += 1; $scheduledCountThisLoop++;
-                                    break;
-                                }
-                            }
-                        }
-                        if ($scheduledCountThisLoop === 0) {
-                            // FALLBACK! Try again ignoring day distribution constraint
-                            $fallbackDays = $days;
-                            shuffle($fallbackDays);
-                            foreach ($fallbackDays as $day) {
-                                if ($hours <= 0) break;
-                                // In fallback, we don't care if subject used today
-                                for ($i = 0; $i < count($normalPeriods); $i++) {
-                                    if ($hours <= 0) break;
-                                    $p1 = $normalPeriods[$i]['period_number'];
-                                    
-                                    if (isset($busyTeachers["$day-$p1-{$load['teacher_id']}"]) || isset($busyClassrooms["$day-$p1-{$load['classroom_id']}"])) continue;
-                                    
-                                    if ($isDouble && $hours >= 2 && isset($normalPeriods[$i+1])) {
-                                        $p2 = $normalPeriods[$i+1]['period_number'];
-                                        if ($p2 == $p1 + 1 && !isset($busyTeachers["$day-$p2-{$load['teacher_id']}"]) && !isset($busyClassrooms["$day-$p2-{$load['classroom_id']}"])) {
-                                            $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                                            $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
-                                            $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p2]);
-                                            $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true; $busyTeachers["$day-$p2-{$load['teacher_id']}"] = true;
-                                            $busyClassrooms["$day-$p1-{$load['classroom_id']}"] = true; $busyClassrooms["$day-$p2-{$load['classroom_id']}"] = true;
-                                            $hours -= 2; $assignedCount += 2; $scheduledCountThisLoop++;
-                                            break;
-                                        }
-                                    } else if (!$isDouble || $hours == 1 || $scheduledCountThisLoop == 0) { 
-                                        // If forced fallback, allow single even for double
-                                        $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
-                                        $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true;
-                                        $busyClassrooms["$day-$p1-{$load['classroom_id']}"] = true;
                                         $hours -= 1; $assignedCount += 1; $scheduledCountThisLoop++;
-                                        break;
+                                        break; 
                                     }
                                 }
                             }
                         }
-                        if ($scheduledCountThisLoop === 0) break; // Truly no space left
+                        if ($scheduledCountThisLoop === 0) break; // Truly stuck
                     }
                 }
                 

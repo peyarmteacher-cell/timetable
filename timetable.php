@@ -22,20 +22,17 @@
         <div class="flex items-center gap-4">
             <div id="view-filters" class="hidden flex items-center gap-4">
                 <select id="viewType" onchange="updateViewFilter()" class="bg-slate-50 border rounded-lg px-3 py-2 text-sm font-bold outline-none">
-                    <option value="teacher">รายครู</option>
-                    <option value="classroom">รายชั้นเรียน</option>
-                    <option value="room">รายห้องเรียน</option>
+                    <option value="teacher">ตารางสอนรายครู</option>
+                    <option value="classroom">ตารางสอนรายชั้นเรียน</option>
+                    <option value="room">ตารางสอนรายห้องเรียน</option>
                 </select>
                 <select id="filterSelect" onchange="loadViewData()" class="bg-slate-50 border rounded-lg px-3 py-2 text-sm font-bold outline-none min-w-[200px]">
-                    <option value="">เลือกการกรอง...</option>
+                    <option value="">เลือกหน่วยที่ต้องการดู...</option>
                 </select>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="autoGenerate()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl flex items-center gap-2 font-bold transition-all shadow-lg hover:shadow-blue-500/20">
+                <button onclick="autoGenerate()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl flex items-center gap-2 font-bold transition-all shadow-lg hover:shadow-blue-500/20 active:scale-95">
                     <i data-lucide="wand-2" size="18"></i> จัดตารางสอนอัตโนมัติ
-                </button>
-                <button onclick="autoGenerate()" class="bg-rose-50 text-rose-600 px-4 py-2 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-rose-100 border border-rose-100 text-xs">
-                    <i data-lucide="refresh-cw" size="14"></i> ล้างและจัดใหม่
                 </button>
             </div>
         </div>
@@ -44,31 +41,35 @@
     <div class="flex-1 overflow-auto p-8 bg-slate-50/50">
         <!-- Assign Mode -->
         <div id="section-assign" class="space-y-6">
-            <!-- 1. Teacher Selection (Horizontal Bar) -->
-            <div class="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                            <i data-lucide="users" size="20"></i>
+            <!-- 1. Teacher Selection (Dropdown for space efficiency) -->
+            <div class="bg-white rounded-[2rem] p-6 shadow-md border border-slate-100">
+                <div class="flex items-center justify-between gap-6 flex-wrap md:flex-nowrap">
+                    <div class="flex items-center gap-3 shrink-0">
+                        <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
+                            <i data-lucide="users" size="24"></i>
                         </div>
                         <div>
-                            <h3 class="font-black text-slate-800 text-lg">เลือกคุณครูเพื่อจัดการข้อมูล</h3>
-                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">จัดการภาระงานและตารางสอนรายบุคคล</p>
+                            <h3 class="font-black text-slate-800 text-lg leading-tight">จัดการตารางรายบุคคล</h3>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">กำหนดภาระงานและล็อกคาบสอนของครู</p>
                         </div>
                     </div>
-                    <div class="relative w-72">
-                        <i data-lucide="search" size="16" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="teacherSearch" oninput="filterTeachers()" placeholder="ค้นหาชื่อคุณครู..." class="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 focus:bg-white transition-all outline-none font-bold text-sm shadow-inner">
+                    
+                    <div class="flex flex-1 items-center gap-4 w-full md:w-auto">
+                        <div class="relative flex-1 group">
+                            <i data-lucide="user-search" size="18" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
+                            <select id="teacherDropdown" onchange="selectTeacher(this.value)" class="w-full pl-12 pr-10 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none font-bold text-sm appearance-none cursor-pointer">
+                                <option value="">--- เลือกคุณครูที่ต้องการจัดการ ---</option>
+                            </select>
+                            <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <i data-lucide="chevron-down" size="18"></i>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                
-                <div id="teacherList" class="flex gap-4 overflow-x-auto pb-4 custom-scrollbar-h">
-                    <!-- Teachers list rendered horizontally -->
                 </div>
             </div>
 
             <!-- Workspace Area -->
-            <div id="assignArea" class="hidden space-y-8">
+            <div id="assignArea" class="hidden space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <!-- 2. Teaching Load Management (Middle) -->
                 <div class="bg-white rounded-[2.5rem] shadow-md border border-slate-100 overflow-hidden">
                     <div class="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
@@ -308,68 +309,25 @@
     }
 
     function renderTeacherList() {
-        const list = document.getElementById('teacherList');
-        list.innerHTML = state.teachers.map(t => {
-            const isActive = state.currentTeacherId == t.id;
-            return `
-                <button onclick="selectTeacher(${t.id})" 
-                        id="teacher-btn-${t.id}"
-                        class="teacher-btn shrink-0 flex items-center gap-4 p-4 pr-6 rounded-2xl transition-all border text-left group min-w-[220px]
-                        ${isActive ? 'bg-blue-600 text-white border-blue-600 shadow-xl scale-[1.03] ring-4 ring-blue-600/10' : 'bg-white border-slate-100 hover:bg-blue-50 text-slate-700 hover:border-blue-100'}" 
-                        data-id="${t.id}">
-                    <div class="icon-box w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600'}">
-                        <i data-lucide="user" size="24"></i>
-                    </div>
-                    <div class="flex-1">
-                        <h4 class="font-black text-sm ${isActive ? 'text-white' : 'text-slate-800'} teacher-name tracking-tight">${t.name}</h4>
-                        <p class="text-[10px] font-black ${isActive ? 'text-white/70' : 'text-slate-400'} uppercase tracking-widest mt-0.5">${t.position || 'คุณครู'}</p>
-                    </div>
-                </button>
-            `;
-        }).join('');
-        lucide.createIcons();
+        const dropdown = document.getElementById('teacherDropdown');
+        dropdown.innerHTML = '<option value="">--- เลือกคุณครูที่ต้องการจัดการ ---</option>' + 
+            state.teachers.map(t => `<option value="${t.id}">${t.name} (${t.position || 'คุณครู'})</option>`).join('');
     }
 
     function filterTeachers() {
-        const query = document.getElementById('teacherSearch').value.toLowerCase();
-        const btns = document.querySelectorAll('.teacher-btn');
-        btns.forEach(btn => {
-            const name = btn.querySelector('.teacher-name').innerText.toLowerCase();
-            btn.classList.toggle('hidden', !name.includes(query));
-        });
+        // Not used now since we use a dropdown
     }
 
     async function selectTeacher(id) {
-        state.currentTeacherId = id;
-        
-        // Reset all buttons
-        document.querySelectorAll('.teacher-btn').forEach(btn => {
-            btn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600', 'shadow-lg', 'scale-[1.02]');
-            btn.classList.add('bg-white', 'border-slate-100', 'text-slate-700');
-            
-            const icon = btn.querySelector('.icon-box');
-            if (icon) {
-                icon.classList.remove('bg-white/20', 'text-white');
-                icon.classList.add('bg-slate-100', 'text-slate-400');
-            }
-            const name = btn.querySelector('.teacher-name');
-            if (name) name.classList.replace('text-white', 'text-slate-700');
-        });
-
-        // Set active button
-        const activeBtn = document.getElementById(`teacher-btn-${id}`);
-        if (activeBtn) {
-            activeBtn.classList.remove('bg-white', 'border-slate-100', 'text-slate-700');
-            activeBtn.classList.add('bg-blue-600', 'text-white', 'border-blue-600', 'shadow-lg', 'scale-[1.02]');
-            
-            const icon = activeBtn.querySelector('.icon-box');
-            if (icon) {
-                icon.classList.remove('bg-slate-100', 'text-slate-400');
-                icon.classList.add('bg-white/20', 'text-white');
-            }
-            const name = activeBtn.querySelector('.teacher-name');
-            if (name) name.classList.replace('text-slate-700', 'text-white');
+        if (!id) {
+            document.getElementById('noTeacherSelected').classList.remove('hidden');
+            document.getElementById('assignArea').classList.add('hidden');
+            state.currentTeacherId = null;
+            return;
         }
+
+        state.currentTeacherId = id;
+        document.getElementById('teacherDropdown').value = id;
         
         document.getElementById('noTeacherSelected').classList.add('hidden');
         document.getElementById('assignArea').classList.remove('hidden');

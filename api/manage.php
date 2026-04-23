@@ -741,7 +741,39 @@ try {
                                 }
                             }
                         }
-                        if ($scheduledCountThisLoop === 0) break; // Could not schedule more
+                        if ($scheduledCountThisLoop === 0) {
+                            // FALLBACK! Try again ignoring day distribution constraint
+                            foreach ($days as $day) {
+                                if ($hours <= 0) break;
+                                for ($i = 0; $i < count($normalPeriods); $i++) {
+                                    if ($hours <= 0) break;
+                                    $p1 = $normalPeriods[$i]['period_number'];
+                                    
+                                    if (isset($busyTeachers["$day-$p1-{$load['teacher_id']}"]) || isset($busyClassrooms["$day-$p1-{$load['classroom_id']}"])) continue;
+                                    
+                                    if ($isDouble && $hours >= 2 && isset($normalPeriods[$i+1])) {
+                                        $p2 = $normalPeriods[$i+1]['period_number'];
+                                        if ($p2 == $p1 + 1 && !isset($busyTeachers["$day-$p2-{$load['teacher_id']}"]) && !isset($busyClassrooms["$day-$p2-{$load['classroom_id']}"])) {
+                                            $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                                            $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
+                                            $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p2]);
+                                            $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true; $busyTeachers["$day-$p2-{$load['teacher_id']}"] = true;
+                                            $busyClassrooms["$day-$p1-{$load['classroom_id']}"] = true; $busyClassrooms["$day-$p2-{$load['classroom_id']}"] = true;
+                                            $hours -= 2; $assignedCount += 2; $scheduledCountThisLoop++;
+                                            break;
+                                        }
+                                    } else if (!$isDouble || $hours == 1) {
+                                        $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
+                                        $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true;
+                                        $busyClassrooms["$day-$p1-{$load['classroom_id']}"] = true;
+                                        $hours -= 1; $assignedCount += 1; $scheduledCountThisLoop++;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if ($scheduledCountThisLoop === 0) break; // Truly no space left
                     }
                 }
                 

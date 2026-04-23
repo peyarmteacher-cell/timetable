@@ -30,9 +30,14 @@
                     <option value="">เลือกการกรอง...</option>
                 </select>
             </div>
-            <button onclick="autoGenerate()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl flex items-center gap-2 font-bold transition-all shadow-lg hover:shadow-blue-500/20">
-                <i data-lucide="wand-2" size="18"></i> จัดตารางสอนอัตโนมัติ
-            </button>
+            <div class="flex items-center gap-2">
+                <button onclick="autoGenerate()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl flex items-center gap-2 font-bold transition-all shadow-lg hover:shadow-blue-500/20">
+                    <i data-lucide="wand-2" size="18"></i> จัดตารางสอนอัตโนมัติ
+                </button>
+                <button onclick="autoGenerate()" class="bg-rose-50 text-rose-600 px-4 py-2 rounded-xl flex items-center gap-2 font-bold transition-all hover:bg-rose-100 border border-rose-100 text-xs">
+                    <i data-lucide="refresh-cw" size="14"></i> ล้างและจัดใหม่
+                </button>
+            </div>
         </div>
     </header>
 
@@ -257,17 +262,25 @@
 
     function renderTeacherList() {
         const list = document.getElementById('teacherList');
-        list.innerHTML = state.teachers.map(t => `
-            <button onclick="selectTeacher(${t.id})" class="teacher-btn w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:bg-slate-50 text-left group" data-id="${t.id}">
-                <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">
-                    <i data-lucide="user" size="20"></i>
-                </div>
-                <div>
-                    <h4 class="font-bold text-slate-700 text-sm group-hover:text-slate-900 teacher-name">${t.name}</h4>
-                    <p class="text-[10px] text-slate-400 font-medium">${t.position || 'คุณครู'}</p>
-                </div>
-            </button>
-        `).join('');
+        list.innerHTML = state.teachers.map(t => {
+            const isActive = state.currentTeacherId == t.id;
+            return `
+                <button onclick="selectTeacher(${t.id})" 
+                        id="teacher-btn-${t.id}"
+                        class="teacher-btn w-full flex items-center gap-3 p-4 rounded-2xl transition-all border text-left group
+                        ${isActive ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-[1.02]' : 'bg-white border-slate-100 hover:bg-blue-50 text-slate-700'}" 
+                        data-id="${t.id}">
+                    <div class="icon-box w-10 h-10 rounded-full flex items-center justify-center transition-all ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600'}">
+                        <i data-lucide="user" size="20"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="font-black text-sm ${isActive ? 'text-white' : 'text-slate-700'} teacher-name">${t.name}</h4>
+                        <p class="text-[10px] font-bold ${isActive ? 'text-white/70' : 'text-slate-400'} uppercase">${t.position || 'คุณครู'}</p>
+                    </div>
+                    <i data-lucide="chevron-right" size="14" class="${isActive ? 'text-white/40' : 'text-slate-300'}"></i>
+                </button>
+            `;
+        }).join('');
         lucide.createIcons();
     }
 
@@ -282,8 +295,35 @@
 
     async function selectTeacher(id) {
         state.currentTeacherId = id;
-        document.querySelectorAll('.teacher-btn').forEach(b => b.classList.remove('bg-blue-50', 'ring-1', 'ring-blue-100'));
-        document.querySelector(`.teacher-btn[data-id="${id}"]`).classList.add('bg-blue-50', 'ring-1', 'ring-blue-100');
+        
+        // Reset all buttons
+        document.querySelectorAll('.teacher-btn').forEach(btn => {
+            btn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600', 'shadow-lg', 'scale-[1.02]');
+            btn.classList.add('bg-white', 'border-slate-100', 'text-slate-700');
+            
+            const icon = btn.querySelector('.icon-box');
+            if (icon) {
+                icon.classList.remove('bg-white/20', 'text-white');
+                icon.classList.add('bg-slate-100', 'text-slate-400');
+            }
+            const name = btn.querySelector('.teacher-name');
+            if (name) name.classList.replace('text-white', 'text-slate-700');
+        });
+
+        // Set active button
+        const activeBtn = document.getElementById(`teacher-btn-${id}`);
+        if (activeBtn) {
+            activeBtn.classList.remove('bg-white', 'border-slate-100', 'text-slate-700');
+            activeBtn.classList.add('bg-blue-600', 'text-white', 'border-blue-600', 'shadow-lg', 'scale-[1.02]');
+            
+            const icon = activeBtn.querySelector('.icon-box');
+            if (icon) {
+                icon.classList.remove('bg-slate-100', 'text-slate-400');
+                icon.classList.add('bg-white/20', 'text-white');
+            }
+            const name = activeBtn.querySelector('.teacher-name');
+            if (name) name.classList.replace('text-slate-700', 'text-white');
+        }
         
         document.getElementById('noTeacherSelected').classList.add('hidden');
         document.getElementById('assignArea').classList.remove('hidden');
@@ -642,16 +682,16 @@
     }
 
     function getColorForSubject(code) {
-        if (!code) return 'bg-slate-50 border-slate-100';
+        if (!code) return 'bg-slate-100 border-slate-200 text-slate-600';
         const colors = [
-            'bg-blue-100 border-blue-200 text-blue-700',
-            'bg-emerald-100 border-emerald-200 text-emerald-700',
-            'bg-amber-100 border-amber-200 text-amber-700',
-            'bg-rose-100 border-rose-200 text-rose-700',
-            'bg-indigo-100 border-indigo-200 text-indigo-700',
-            'bg-violet-100 border-violet-200 text-violet-700',
-            'bg-sky-100 border-sky-200 text-sky-700',
-            'bg-orange-100 border-orange-200 text-orange-700'
+            'bg-blue-600 text-white border-blue-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.2)]',
+            'bg-emerald-600 text-white border-emerald-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.2)]',
+            'bg-orange-600 text-white border-orange-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.2)]',
+            'bg-rose-600 text-white border-rose-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.2)]',
+            'bg-indigo-600 text-white border-indigo-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.2)]',
+            'bg-violet-600 text-white border-violet-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.2)]',
+            'bg-sky-600 text-white border-sky-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.2)]',
+            'bg-fuchsia-600 text-white border-fuchsia-700 shadow-[inset_0_2px_4px_rgba(255,255,255,0.2)]'
         ];
         let hash = 0;
         for (let i = 0; i < code.length; i++) hash = code.charCodeAt(i) + ((hash << 5) - hash);
@@ -748,10 +788,10 @@
                     const teacherFirstName = entry.teacher_name ? 'ครู' + entry.teacher_name.split(' ')[0] : '-';
                     content = `
                         <div class="${colorClasses} rounded-2xl p-4 h-full shadow-lg border transition-all hover:scale-[1.05] hover:z-30 cursor-default flex flex-col justify-center items-center text-center">
-                            <p class="text-sm font-black mb-1.5 uppercase tracking-wider">${entry.subject_code}</p>
-                            <p class="text-[10px] font-bold opacity-80 mb-1 leading-tight">${teacherFirstName}</p>
-                            <p class="text-[9px] font-bold opacity-60 leading-none mb-1.5">ห้อง ${entry.room_name || '-'}</p>
-                            ${state.viewType !== 'classroom' ? `<span class="text-[9px] font-black bg-black/5 px-2 py-0.5 rounded-full">${entry.classroom_level}/${entry.classroom_name}</span>` : ''}
+                            <p class="text-[13px] font-black mb-1 uppercase tracking-wider">${entry.subject_code}</p>
+                            <p class="text-[11px] font-bold opacity-90 mb-1 leading-tight">${teacherFirstName}</p>
+                            <p class="text-[10px] font-bold opacity-80 leading-none mb-2">ห้อง ${entry.room_name || '-'}</p>
+                            <span class="text-[9px] font-black bg-white/20 border border-white/10 px-3 py-1 rounded-full shadow-sm text-white">${entry.classroom_level}/${entry.classroom_name}</span>
                         </div>
                     `;
                 }

@@ -660,6 +660,9 @@ try {
                 $busyTeachers = []; $busyClassrooms = []; $subjectUsedToday = [];
                 $assignedCount = 0; $days = [1, 2, 3, 4, 5];
 
+                // RANDOMIZE entry order for Shuffle effect
+                shuffle($loads);
+
                 // STEP 1: Process Fixed Slots First
                 foreach ($loads as &$load) {
                     $fixed = json_decode($load['fixed_slots'] ?? '[]', true);
@@ -688,11 +691,15 @@ try {
 
                     while ($hours > 0) {
                         $scheduledCountThisLoop = 0;
-                        foreach ($days as $day) {
+                        $shuffledDays = $days;
+                        shuffle($shuffledDays);
+
+                        foreach ($shuffledDays as $day) {
                             if ($hours <= 0) break;
                             if (isset($subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"])) continue;
 
-                            // Find available periods for this day
+                            // MUST NOT shuffle periods here if we need consecutive slots
+                            // Just iterate through the normal periods for this day
                             for ($i = 0; $i < count($normalPeriods); $i++) {
                                 if ($hours <= 0) break;
                                 $p1 = $normalPeriods[$i]['period_number'];

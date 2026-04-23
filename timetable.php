@@ -44,95 +44,112 @@
     <div class="flex-1 overflow-auto p-8 bg-slate-50/50">
         <!-- Assign Mode -->
         <div id="section-assign" class="space-y-6">
-            <div class="grid grid-cols-12 gap-8 relative">
-                <!-- Teacher List & Selection -->
-                <div id="teacherColumn" class="col-span-3 space-y-4">
-                    <div class="bg-white rounded-2xl shadow-sm border p-6 sticky top-24">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="font-bold text-slate-900 flex items-center gap-2">
-                                <i data-lucide="users" class="text-blue-600"></i> คุณครู
-                            </h3>
+            <!-- 1. Teacher Selection (Horizontal Bar) -->
+            <div class="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <i data-lucide="users" size="20"></i>
                         </div>
-                        <div class="relative mb-4">
-                            <i data-lucide="search" size="14" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                            <input type="text" id="teacherSearch" oninput="filterTeachers()" placeholder="ค้นหา..." class="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-100 bg-slate-50 focus:bg-white transition-all outline-none text-xs">
+                        <div>
+                            <h3 class="font-black text-slate-800 text-lg">เลือกคุณครูเพื่อจัดการข้อมูล</h3>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">จัดการภาระงานและตารางสอนรายบุคคล</p>
                         </div>
-                        <div id="teacherList" class="space-y-1 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-                            <!-- Teachers list -->
+                    </div>
+                    <div class="relative w-72">
+                        <i data-lucide="search" size="16" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="teacherSearch" oninput="filterTeachers()" placeholder="ค้นหาชื่อคุณครู..." class="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-100 bg-slate-50 focus:bg-white transition-all outline-none font-bold text-sm shadow-inner">
+                    </div>
+                </div>
+                
+                <div id="teacherList" class="flex gap-4 overflow-x-auto pb-4 custom-scrollbar-h">
+                    <!-- Teachers list rendered horizontally -->
+                </div>
+            </div>
+
+            <!-- Workspace Area -->
+            <div id="assignArea" class="hidden space-y-8">
+                <!-- 2. Teaching Load Management (Middle) -->
+                <div class="bg-white rounded-[2.5rem] shadow-md border border-slate-100 overflow-hidden">
+                    <div class="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                <i data-lucide="layers" size="20"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-black text-slate-900 text-lg">รายงานภาระงานครู</h3>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">กำหนดวิชา คาบเรียน และห้องเรียนที่ใช้</p>
+                            </div>
                         </div>
+                        <button onclick="openAddLoadModal()" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/10 flex items-center gap-2 uppercase tracking-widest">
+                            <i data-lucide="plus-circle" size="16"></i> เพิ่มภาระงานใหม่
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-slate-50/50 border-b border-slate-100">
+                                <tr class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">
+                                    <th class="px-8 py-5">ระดับชั้น/ห้อง</th>
+                                    <th class="px-8 py-5">รหัสวิชา - ชื่อวิชา</th>
+                                    <th class="px-8 py-5">ห้องเรียนที่ใช้</th>
+                                    <th class="px-8 py-5 text-center">คาบ/สัปดาห์</th>
+                                    <th class="px-8 py-5 text-right">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="teachingLoadTable" class="divide-y divide-slate-50 text-sm">
+                                <!-- Load items -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <!-- Assignment Form -->
-                <div id="assignContent" class="col-span-9 space-y-6">
-                    <div id="assignArea" class="hidden space-y-6">
-                        <!-- Individual Teacher Timetable & Shuffle Button -->
-                        <div class="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-                            <div class="bg-indigo-950 p-8 flex justify-between items-center">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
-                                        <i data-lucide="calendar" size="28"></i>
-                                    </div>
-                                    <div>
-                                        <h3 id="selectedTeacherName" class="font-black text-2xl text-white leading-none">รายชื่อครู</h3>
-                                        <p class="text-indigo-300 text-xs font-bold mt-2 uppercase tracking-widest flex items-center gap-2">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                            ตารางสอนรายบุคคลของคุณครู
-                                        </p>
-                                    </div>
-                                </div>
-                                <button onclick="autoGenerate()" class="group bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl flex items-center gap-3 font-black transition-all shadow-xl shadow-orange-500/20 active:scale-95 text-sm uppercase tracking-widest">
-                                    <i data-lucide="shuffle" size="20" class="group-hover:rotate-180 transition-transform duration-700"></i>
-                                    สุ่มจัดตารางใหม่
+                <!-- 3. Individual Teacher Timetable (Bottom) -->
+                <div class="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
+                    <div class="bg-indigo-950 p-8 flex justify-between items-center">
+                        <div class="flex items-center gap-4">
+                            <div class="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
+                                <i data-lucide="calendar" size="28"></i>
+                            </div>
+                            <div>
+                                <h3 id="selectedTeacherName" class="font-black text-2xl text-white leading-none">รายชื่อครู</h3>
+                                <p class="text-indigo-300 text-xs font-bold mt-2 uppercase tracking-widest flex items-center gap-2">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    แสดงผลตารางสอนปัจจุบัน (Full View)
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="flex bg-white/10 p-1 rounded-xl border border-white/10 mr-2">
+                                <button onclick="adjustZoom(-0.1)" class="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 rounded-lg transition-all" title="ซูมออก">
+                                    <i data-lucide="minus" size="18"></i>
+                                </button>
+                                <div class="w-12 flex items-center justify-center text-white font-black text-xs" id="zoomDisplay">100%</div>
+                                <button onclick="adjustZoom(0.1)" class="w-10 h-10 flex items-center justify-center text-white hover:bg-white/10 rounded-lg transition-all" title="ซูมเข้า">
+                                    <i data-lucide="plus" size="18"></i>
                                 </button>
                             </div>
-                            <div class="p-8 bg-slate-50">
-                                <div id="miniTimetable" class="grid gap-px border border-indigo-900 bg-indigo-950 rounded-[2rem] overflow-hidden shadow-inner">
-                                    <!-- Mini Generated by JS -->
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bg-white rounded-[2.5rem] shadow-md border border-slate-100 overflow-hidden">
-                            <div class="p-8 border-b border-slate-50 flex justify-between items-center">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                                        <i data-lucide="layers" size="20"></i>
-                                    </div>
-                                    <div>
-                                        <h3 class="font-black text-slate-900 text-lg text-emerald-600">รายงานภาระงานครู</h3>
-                                        <p class="text-[10px] text-slate-400 font-bold uppercase">จัดการรายวิชาและคาบสอนต่อสัปดาห์</p>
-                                    </div>
-                                </div>
-                                <button onclick="openAddLoadModal()" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-black text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/10 flex items-center gap-2">
-                                    <i data-lucide="plus-circle" size="16"></i> เพิ่มภาระงาน
-                                </button>
-                            </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full">
-                                    <thead class="bg-slate-50/50 border-b border-slate-100">
-                                        <tr class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            <th class="px-8 py-5">ระดับชั้น/ห้อง</th>
-                                            <th class="px-8 py-5">รหัสวิชา - ชื่อวิชา</th>
-                                            <th class="px-8 py-5">ห้องเรียนที่ใช้</th>
-                                            <th class="px-8 py-5 text-center">คาบ/สัปดาห์</th>
-                                            <th class="px-8 py-5 text-right">จัดการ</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="teachingLoadTable" class="divide-y divide-slate-50 text-sm">
-                                        <!-- Load items -->
-                                    </tbody>
-                                </table>
-                            </div>
+                            <button onclick="autoGenerate()" class="group bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl flex items-center gap-3 font-black transition-all shadow-xl shadow-orange-500/20 active:scale-95 text-sm uppercase tracking-widest">
+                                <i data-lucide="shuffle" size="20" class="group-hover:rotate-180 transition-transform duration-700"></i>
+                                สุ่มจัดตารางใหม่
+                            </button>
                         </div>
                     </div>
-
-                    <div id="noTeacherSelected" class="bg-white rounded-2xl shadow-sm border border-dashed p-12 text-center flex flex-col items-center gap-4">
-                        <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
-                            <i data-lucide="user-check" size="40"></i>
+                    <div class="p-8 bg-slate-50 min-h-[600px]">
+                        <div id="miniTimetable" class="grid gap-px border border-indigo-900 bg-indigo-950 rounded-[2rem] overflow-hidden shadow-2xl">
+                            <!-- Timetable Data -->
                         </div>
-                        <h3 class="text-lg font-bold text-slate-400">กรุณาเลือกคุณครูเพื่อเริ่มกำหนดการสอน</h3>
                     </div>
+                </div>
+            </div>
+
+            <!-- No Selection State -->
+            <div id="noTeacherSelected" class="bg-white rounded-[2.5rem] shadow-sm border border-dashed border-slate-200 p-24 text-center flex flex-col items-center gap-6">
+                <div class="w-24 h-24 bg-blue-50 text-blue-300 rounded-[2rem] flex items-center justify-center animate-bounce">
+                    <i data-lucide="user-check" size="48"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-black text-slate-400">ยังไม่ได้เลือกคุณครู</h3>
+                    <p class="text-slate-300 font-bold text-sm mt-2">กรุณาเลือกคุณครูจากแถบด้านบนเพื่อเริ่มจัดการตารางสอน</p>
                 </div>
             </div>
         </div>
@@ -261,8 +278,15 @@
         subjects: [],
         currentTeacherId: null,
         viewMode: 'assign',
-        viewType: 'teacher'
+        viewType: 'teacher',
+        timetableZoom: 1.0
     };
+
+    function adjustZoom(delta) {
+        state.timetableZoom = Math.max(0.5, Math.min(2.0, state.timetableZoom + delta));
+        document.getElementById('zoomDisplay').innerText = Math.round(state.timetableZoom * 100) + '%';
+        if (state.currentTeacherId) renderMiniTimetable(state.currentTeacherId);
+    }
 
     async function init() {
         await loadPeriods();
@@ -290,17 +314,16 @@
             return `
                 <button onclick="selectTeacher(${t.id})" 
                         id="teacher-btn-${t.id}"
-                        class="teacher-btn w-full flex items-center gap-3 p-4 rounded-2xl transition-all border text-left group
-                        ${isActive ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-[1.02]' : 'bg-white border-slate-100 hover:bg-blue-50 text-slate-700'}" 
+                        class="teacher-btn shrink-0 flex items-center gap-4 p-4 pr-6 rounded-2xl transition-all border text-left group min-w-[220px]
+                        ${isActive ? 'bg-blue-600 text-white border-blue-600 shadow-xl scale-[1.03] ring-4 ring-blue-600/10' : 'bg-white border-slate-100 hover:bg-blue-50 text-slate-700 hover:border-blue-100'}" 
                         data-id="${t.id}">
-                    <div class="icon-box w-10 h-10 rounded-full flex items-center justify-center transition-all ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600'}">
-                        <i data-lucide="user" size="20"></i>
+                    <div class="icon-box w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600'}">
+                        <i data-lucide="user" size="24"></i>
                     </div>
                     <div class="flex-1">
-                        <h4 class="font-black text-sm ${isActive ? 'text-white' : 'text-slate-700'} teacher-name">${t.name}</h4>
-                        <p class="text-[10px] font-bold ${isActive ? 'text-white/70' : 'text-slate-400'} uppercase">${t.position || 'คุณครู'}</p>
+                        <h4 class="font-black text-sm ${isActive ? 'text-white' : 'text-slate-800'} teacher-name tracking-tight">${t.name}</h4>
+                        <p class="text-[10px] font-black ${isActive ? 'text-white/70' : 'text-slate-400'} uppercase tracking-widest mt-0.5">${t.position || 'คุณครู'}</p>
                     </div>
-                    <i data-lucide="chevron-right" size="14" class="${isActive ? 'text-white/40' : 'text-slate-300'}"></i>
                 </button>
             `;
         }).join('');
@@ -775,16 +798,16 @@
         const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'];
         
         let html = `
-            <div class="overflow-x-auto rounded-[2rem] border border-indigo-900 shadow-2xl bg-indigo-950">
+            <div class="overflow-x-auto rounded-[2.5rem] border border-indigo-900 shadow-2xl bg-indigo-950 px-px pb-px">
                 <table class="w-full border-collapse min-w-[1200px]">
                     <thead>
                         <tr class="bg-indigo-950 border-b border-indigo-900">
-                            <th class="p-6 border-r border-indigo-900 w-32 font-black text-indigo-300 text-[11px] uppercase text-center sticky left-0 z-20 bg-indigo-950 backdrop-blur-sm">วัน / คาบ</th>
+                            <th class="p-8 border-r border-indigo-900 w-40 font-black text-indigo-300 text-[11px] uppercase text-center sticky left-0 z-20 bg-indigo-950 backdrop-blur-sm">วัน / คาบ</th>
                             ${timetablePeriods.map(p => `
-                                <th class="p-4 border-r border-indigo-900 text-center">
-                                    <p class="text-[10px] font-black text-indigo-400 uppercase mb-0.5 tracking-tighter">คาบ ${p.period_number}</p>
-                                    <p class="text-xs font-black text-white">${p.start_time.substring(0, 5)} - ${p.end_time.substring(0, 5)}</p>
-                                    ${p.type !== 'normal' ? `<span class="inline-block mt-1 px-3 py-0.5 rounded-full bg-white/10 text-[9px] font-bold text-white/40 uppercase tracking-widest">${p.type === 'break' ? 'พัก' : 'กิจกรรม'}</span>` : ''}
+                                <th class="p-6 border-r border-indigo-900 text-center">
+                                    <p class="text-[10px] font-black text-indigo-400 uppercase mb-1 tracking-widest">คาบ ${p.period_number}</p>
+                                    <p class="text-sm font-black text-white">${p.start_time.substring(0, 5)} - ${p.end_time.substring(0, 5)}</p>
+                                    ${p.type !== 'normal' ? `<span class="inline-block mt-2 px-3 py-1 rounded-full bg-white/10 text-[9px] font-black text-white/50 uppercase tracking-widest border border-white/5">${p.type === 'break' ? 'พักกลางวัน' : 'กิจกรรม'}</span>` : ''}
                                 </th>
                             `).join('')}
                         </tr>
@@ -795,23 +818,25 @@
         days.forEach((dayName, dayIdx) => {
             const currentDayNumber = dayIdx + 1;
             html += `<tr class="border-b last:border-b-0 group">
-                <td class="bg-blue-600 border-r border-white/10 p-6 font-black text-white text-center text-sm sticky left-0 z-20 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] transition-colors group-hover:bg-blue-700">${dayName}</td>`;
+                <td class="bg-blue-600 border-r border-white/10 p-8 font-black text-white text-center text-lg sticky left-0 z-20 shadow-[8px_0_20px_-8px_rgba(0,0,0,0.3)] transition-colors group-hover:bg-blue-700">${dayName}</td>`;
             
             timetablePeriods.forEach(p => {
                 const entry = data.find(d => d.day == currentDayNumber && d.period == p.period_number);
-                
                 let content = '';
+                
                 if (p.type === 'break' || p.type === 'activity') {
-                    content = `<div class="h-full w-full flex flex-col items-center justify-center bg-slate-50/50 opacity-40 grayscale group-hover:opacity-100 transition-all">
-                        <i data-lucide="${p.type === 'break' ? 'coffee' : 'star'}" class="text-slate-300 mb-1" size="14"></i>
-                        <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">${p.type === 'break' ? 'พักเที่ยง' : 'กิจกรรม'}</span>
-                    </div>`;
+                    content = `
+                        <div class="h-full w-full flex flex-col items-center justify-center bg-slate-950/5 flex flex-col items-center justify-center gap-2 opacity-30 grayscale group-hover:opacity-100 transition-all">
+                            <i data-lucide="${p.type === 'break' ? 'coffee' : 'star'}" size="24" class="text-slate-400 mb-1"></i>
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">${p.type === 'break' ? 'พักเที่ยง' : 'กิจกรรม'}</span>
+                        </div>
+                    `;
                 } else if (entry) {
                     const colorClasses = getColorForSubject(entry.subject_code);
                     const teacherFirstName = entry.teacher_name ? 'ครู' + entry.teacher_name.split(' ')[0] : '-';
                     content = `
                         <div class="${colorClasses} rounded-2xl p-4 h-full shadow-lg border transition-all hover:scale-[1.05] hover:z-30 cursor-default flex flex-col justify-center items-center text-center">
-                            <p class="text-[13px] font-black mb-1 uppercase tracking-wider">${entry.subject_code}</p>
+                            <p class="text-[13px] font-black mb-1 uppercase tracking-wider drop-shadow-sm">${entry.subject_code}</p>
                             <p class="text-[11px] font-bold opacity-90 mb-1 leading-tight">${teacherFirstName}</p>
                             <p class="text-[10px] font-bold opacity-80 leading-none mb-2">ห้อง ${entry.room_name || '-'}</p>
                             <span class="text-[9px] font-black bg-white/20 border border-white/10 px-3 py-1 rounded-full shadow-sm text-white">${entry.classroom_level}/${entry.classroom_name}</span>
@@ -820,7 +845,7 @@
                 }
 
                 html += `
-                    <td class="border-r border-slate-50 last:border-r-0 p-3 min-w-[170px] h-[150px] align-top bg-white transition-colors group-hover:bg-blue-50/10">
+                    <td class="border-r border-slate-50 last:border-r-0 p-4 min-w-[170px] h-[155px] align-top bg-white transition-colors group-hover:bg-blue-50/20">
                         ${content}
                     </td>
                 `;
@@ -838,44 +863,49 @@
         const res = await fetch(`api/manage.php?action=get_teacher_timetable&teacher_id=${teacherId}`);
         const data = await res.json();
         
+        const zoom = state.timetableZoom;
+        const baseHeight = 55 * zoom;
+        const baseFontSize = 10 * zoom;
+        const subFontSize = 7 * zoom;
+
         const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'];
         let html = `
-            <div class="bg-indigo-950 p-3 font-black text-[9px] text-indigo-300 text-center flex items-center justify-center border-b border-indigo-900 border-r uppercase tracking-tighter">วัน/เวลา</div>
+            <div class="bg-indigo-950 p-3 font-black text-indigo-300 text-center flex items-center justify-center border-b border-indigo-900 border-r uppercase tracking-tighter" style="font-size: ${baseFontSize * 0.9}px">วัน/เวลา</div>
         `;
         
         timetablePeriods.forEach(p => {
             html += `
                 <div class="bg-indigo-950 p-2 text-center border-b border-indigo-900 border-r last:border-r-0">
-                    <p class="text-[8px] font-black text-indigo-400 uppercase tracking-tighter">คาบ ${p.period_number}</p>
-                    <p class="text-[9px] font-black text-white">${p.start_time.substring(0, 5)}</p>
+                    <p class="font-black text-indigo-400 uppercase tracking-tighter" style="font-size: ${baseFontSize * 0.8}px">คาบ ${p.period_number}</p>
+                    <p class="font-black text-white" style="font-size: ${baseFontSize * 0.9}px">${p.start_time.substring(0, 5)}</p>
                 </div>
             `;
         });
         
         days.forEach((dayName, dayIdx) => {
             const currentDayNumber = dayIdx + 1;
-            html += `<div class="bg-blue-600 p-3 text-center text-[11px] font-black text-white flex items-center justify-center border-b border-white/10 border-r uppercase">${dayName}</div>`;
+            html += `<div class="bg-blue-600 p-3 text-center font-black text-white flex items-center justify-center border-b border-white/10 border-r uppercase" style="font-size: ${baseFontSize * 1.1}px">${dayName}</div>`;
             timetablePeriods.forEach(p => {
                 const entry = data.find(d => d.day == currentDayNumber && d.period == p.period_number);
                 
                 let cellContent = '';
                 if (p.type === 'break' || p.type === 'activity') {
                     cellContent = `<div class="w-full h-full bg-slate-900/40 flex flex-col items-center justify-center gap-0.5">
-                        <i data-lucide="${p.type === 'break' ? 'coffee' : 'star'}" size="10" class="text-indigo-400 opacity-50"></i>
-                        <span class="text-[6px] font-black text-indigo-400 uppercase tracking-tighter opacity-50">${p.type === 'break' ? 'พัก' : 'กิจกรรม'}</span>
+                        <i data-lucide="${p.type === 'break' ? 'coffee' : 'star'}" size="${10 * zoom}" class="text-indigo-400 opacity-50"></i>
+                        <span class="font-black text-indigo-400 uppercase tracking-tighter opacity-50" style="font-size: ${baseFontSize * 0.6}px">${p.type === 'break' ? 'พัก' : 'กิจกรรม'}</span>
                     </div>`;
                 } else if (entry) {
                     const colorClasses = getColorForSubject(entry.subject_code);
-                    cellContent = `<div class="${colorClasses} w-full h-full flex flex-col items-center justify-center rounded-lg border text-[10px] font-black shadow-lg p-1 transition-transform hover:scale-110 hover:z-20">
-                        <span class="leading-none mb-0.5 text-white drop-shadow-sm">${entry.subject_code}</span>
+                    cellContent = `<div class="${colorClasses} w-full h-full flex flex-col items-center justify-center rounded-lg border font-black shadow-lg p-1 transition-transform hover:scale-110 hover:z-20">
+                        <span class="leading-none mb-0.5 text-white drop-shadow-sm" style="font-size: ${baseFontSize}px">${entry.subject_code}</span>
                         <div class="flex flex-col items-center gap-0.5 mt-0.5">
-                            <span class="text-[6px] text-white/80 leading-none font-bold">ห้อง ${entry.room_name || '-'}</span>
-                            <span class="text-[7px] text-white leading-none bg-white/20 px-1.5 py-0.5 rounded-full border border-white/10">${entry.classroom_level}/${entry.classroom_name}</span>
+                            <span class="text-white/80 leading-none font-bold" style="font-size: ${subFontSize * 0.8}px">ห้อง ${entry.room_name || '-'}</span>
+                            <span class="text-white leading-none bg-white/20 px-1.5 py-0.5 rounded-full border border-white/10" style="font-size: ${subFontSize}px">${entry.classroom_level}/${entry.classroom_name}</span>
                         </div>
                     </div>`;
                 }
 
-                html += `<div class="bg-white p-1.5 min-h-[55px] border-b border-r last:border-r-0 border-slate-100 transition-colors hover:bg-indigo-50/50">
+                html += `<div class="bg-white p-1.5 border-b border-r last:border-r-0 border-slate-100 transition-colors hover:bg-indigo-50/50" style="min-height: ${baseHeight}px">
                     ${cellContent}
                 </div>`;
             });

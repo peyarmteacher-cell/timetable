@@ -39,6 +39,7 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS teachers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      position TEXT,
       school_id INTEGER,
       FOREIGN KEY(school_id) REFERENCES schools(id)
     );
@@ -47,9 +48,9 @@ async function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code TEXT NOT NULL,
       name TEXT NOT NULL,
-      full_name TEXT,
+      level TEXT,
       hours_per_week INTEGER DEFAULT 1,
-      is_double INTEGER DEFAULT 0, -- 0: single, 1: double
+      is_double INTEGER DEFAULT 0,
       school_id INTEGER,
       FOREIGN KEY(school_id) REFERENCES schools(id)
     );
@@ -57,33 +58,58 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS rooms (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      type TEXT, -- regular, lab, etc.
       school_id INTEGER,
       FOREIGN KEY(school_id) REFERENCES schools(id)
     );
 
-    CREATE TABLE IF NOT EXISTS class_groups (
+    CREATE TABLE IF NOT EXISTS classrooms (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL, -- e.g., ป.1/1
       level TEXT NOT NULL,
+      name TEXT NOT NULL,
       school_id INTEGER,
       FOREIGN KEY(school_id) REFERENCES schools(id)
     );
 
-    CREATE TABLE IF NOT EXISTS timetable_entries (
+    CREATE TABLE IF NOT EXISTS teaching_load (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      subject_id INTEGER,
       teacher_id INTEGER,
+      subject_id INTEGER,
+      classroom_id INTEGER,
       room_id INTEGER,
-      class_group_id INTEGER,
-      day_of_week INTEGER, -- 1-5 (Mon-Fri)
-      period INTEGER, -- 1-8
-      is_fixed INTEGER DEFAULT 0,
+      hours_per_week INTEGER DEFAULT 2,
+      period_type TEXT DEFAULT 'single', -- single, double
+      fixed_slots TEXT, -- JSON array
+      allowed_slots TEXT, -- JSON array
       school_id INTEGER,
-      FOREIGN KEY(subject_id) REFERENCES subjects(id),
       FOREIGN KEY(teacher_id) REFERENCES teachers(id),
-      FOREIGN KEY(room_id) REFERENCES rooms(id),
-      FOREIGN KEY(class_group_id) REFERENCES class_groups(id)
+      FOREIGN KEY(subject_id) REFERENCES subjects(id),
+      FOREIGN KEY(classroom_id) REFERENCES classrooms(id),
+      FOREIGN KEY(room_id) REFERENCES rooms(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS periods (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      school_id INTEGER,
+      period_number INTEGER NOT NULL,
+      start_time TEXT,
+      end_time TEXT,
+      type TEXT DEFAULT 'normal', -- normal, break, activity
+      FOREIGN KEY(school_id) REFERENCES schools(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS timetable (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      school_id INTEGER,
+      teacher_id INTEGER,
+      subject_id INTEGER,
+      classroom_id INTEGER,
+      room_id INTEGER,
+      day INTEGER, -- 1-5
+      period INTEGER,
+      FOREIGN KEY(teacher_id) REFERENCES teachers(id),
+      FOREIGN KEY(subject_id) REFERENCES subjects(id),
+      FOREIGN KEY(classroom_id) REFERENCES classrooms(id),
+      FOREIGN KEY(room_id) REFERENCES rooms(id)
     );
   `);
 
@@ -94,6 +120,51 @@ async function initDb() {
       "INSERT INTO users (username, password, name, role, is_approved) VALUES (?, ?, ?, ?, ?)",
       ['admin', '123456', 'Super Admin', 'super_admin', 1]
     );
+    
+    // Seed dummy data for school_id 1
+    const school_id = 1;
+    await db.run("INSERT OR IGNORE INTO schools (id, name, code, is_approved) VALUES (?, ?, ?, ?)", [school_id, 'โรงเรียนตัวอย่าง', 'TEST001', 1]);
+    
+    const teachers = [
+        ['สมชาย ใจดี', 'ครูชำนาญการ'],
+        ['สมศรี มีสุข', 'ครูประจำการ'],
+        ['บุญมี มานะ', 'ครูอัตราจ้าง']
+    ];
+    for (const [n, p] of teachers) {
+        await db.run("INSERT INTO teachers (name, position, school_id) VALUES (?, ?, ?)", [n, p, school_id]);
+    }
+
+    const classrooms = [
+        ['ป.1', '1'], ['ป.1', '2'], ['ป.2', '1']
+    ];
+    for (const [l, n] of classrooms) {
+        await db.run("INSERT INTO classrooms (level, name, school_id) VALUES (?, ?, ?)", [l, n, school_id]);
+    }
+
+    const subjects = [
+        ['ท11101', 'ภาษาไทย', 'ป.1', 5, 0],
+        ['ค11101', 'คณิตศาสตร์', 'ป.1', 5, 0],
+        ['ว11101', 'วิทยาศาสตร์', 'ป.1', 3, 0],
+        ['ส11101', 'สังคมศึกษา', 'ป.1', 2, 0]
+    ];
+    for (const [c, n, l, h, d] of subjects) {
+        await db.run("INSERT INTO subjects (code, name, level, hours_per_week, is_double, school_id) VALUES (?, ?, ?, ?, ?, ?)", [c, n, l, h, d, school_id]);
+    }
+
+    // Default periods
+    const defaults = [
+        {n: 1, s: '08:30', e: '09:20', t: 'normal'},
+        {n: 2, s: '09:20', e: '10:10', t: 'normal'},
+        {n: 3, s: '10:10', e: '11:00', t: 'normal'},
+        {n: 4, s: '11:00', e: '11:50', t: 'normal'},
+        {n: 5, s: '11:50', e: '12:50', t: 'break'},
+        {n: 6, s: '12:50', e: '13:40', t: 'normal'},
+        {n: 7, s: '13:40', e: '14:30', t: 'normal'},
+        {n: 8, s: '14:30', e: '15:20', t: 'normal'}
+    ];
+    for (const d of defaults) {
+        await db.run("INSERT INTO periods (school_id, period_number, start_time, end_time, type) VALUES (?, ?, ?, ?, ?)", [school_id, d.n, d.s, d.e, d.t]);
+    }
   }
 
   return db;
@@ -118,13 +189,293 @@ async function startServer() {
     }
   });
 
+  // Main Management API (Mocking PHP api/manage.php)
+  app.all('/api/manage.php', async (req, res) => {
+    const action = req.query.action;
+    const school_id = 1; // Simulated school_id for preview
+
+    try {
+      switch (action) {
+        case 'teachers_list':
+          const teachers = await db.all("SELECT * FROM teachers WHERE school_id = ? ORDER BY name ASC", [school_id]);
+          res.json(teachers);
+          break;
+        case 'classrooms_list':
+          const classrooms = await db.all("SELECT * FROM classrooms WHERE school_id = ? ORDER BY level, name ASC", [school_id]);
+          res.json(classrooms);
+          break;
+        case 'rooms_list':
+          const rooms = await db.all("SELECT * FROM rooms WHERE school_id = ? ORDER BY name ASC", [school_id]);
+          res.json(rooms);
+          break;
+        case 'subjects_list':
+          const subjects = await db.all("SELECT * FROM subjects WHERE school_id = ? ORDER BY level, code ASC", [school_id]);
+          res.json(subjects);
+          break;
+        case 'subjects_by_level':
+          const subByLevel = await db.all("SELECT * FROM subjects WHERE school_id = ? AND level = ? ORDER BY code ASC", [school_id, req.query.level]);
+          res.json(subByLevel);
+          break;
+        case 'teaching_load_list':
+          const loadList = await db.all(`
+            SELECT tl.*, s.name as subject_name, s.code as subject_code, c.name as classroom_name, c.level as classroom_level, r.name as room_name
+            FROM teaching_load tl
+            JOIN subjects s ON tl.subject_id = s.id
+            JOIN classrooms c ON tl.classroom_id = c.id
+            LEFT JOIN rooms r ON tl.room_id = r.id
+            WHERE tl.school_id = ? AND tl.teacher_id = ?
+          `, [school_id, req.query.teacher_id]);
+          res.json(loadList);
+          break;
+        case 'teaching_load_add':
+          const { teacher_id, subject_id, classroom_id, room_id, hours_per_week, period_type } = req.body;
+          await db.run(
+            "INSERT INTO teaching_load (teacher_id, subject_id, classroom_id, room_id, hours_per_week, period_type, school_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [teacher_id, subject_id, classroom_id, room_id, hours_per_week, period_type, school_id]
+          );
+          res.json({ success: true });
+          break;
+        case 'teaching_load_delete':
+          await db.run("DELETE FROM teaching_load WHERE id = ? AND school_id = ?", [req.query.id, school_id]);
+          res.json({ success: true });
+          break;
+        case 'periods_list':
+          let periods = await db.all("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC", [school_id]);
+          if (periods.length === 0) {
+            // Seed default periods if empty
+            const defaults = [
+                {n: 1, s: '08:30', e: '09:20', t: 'normal'},
+                {n: 2, s: '09:20', e: '10:10', t: 'normal'},
+                {n: 3, s: '10:10', e: '11:00', t: 'normal'},
+                {n: 4, s: '11:00', e: '11:50', t: 'normal'},
+                {n: 5, s: '11:50', e: '12:50', t: 'break'},
+                {n: 6, s: '12:50', e: '13:40', t: 'normal'},
+                {n: 7, s: '13:40', e: '14:30', t: 'normal'},
+                {n: 8, s: '14:30', e: '15:20', t: 'normal'}
+            ];
+            for (const d of defaults) {
+                await db.run("INSERT INTO periods (school_id, period_number, start_time, end_time, type) VALUES (?, ?, ?, ?, ?)", [school_id, d.n, d.s, d.e, d.t]);
+            }
+            periods = await db.all("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC", [school_id]);
+          }
+          res.json(periods);
+          break;
+        case 'get_teacher_timetable':
+          const tTable = await db.all(`
+            SELECT t.*, s.code as subject_code, s.name as subject_name, c.level as classroom_level, c.name as classroom_name, r.name as room_name, te.name as teacher_name
+            FROM timetable t
+            JOIN subjects s ON t.subject_id = s.id
+            JOIN classrooms c ON t.classroom_id = c.id
+            JOIN teachers te ON t.teacher_id = te.id
+            LEFT JOIN rooms r ON t.room_id = r.id
+            WHERE t.school_id = ? AND t.teacher_id = ?
+          `, [school_id, req.query.teacher_id]);
+          res.json(tTable);
+          break;
+        case 'get_classroom_timetable':
+          const cTable = await db.all(`
+            SELECT t.*, s.code as subject_code, s.name as subject_name, c.level as classroom_level, c.name as classroom_name, r.name as room_name, te.name as teacher_name
+            FROM timetable t
+            JOIN subjects s ON t.subject_id = s.id
+            JOIN classrooms c ON t.classroom_id = c.id
+            JOIN teachers te ON t.teacher_id = te.id
+            LEFT JOIN rooms r ON t.room_id = r.id
+            WHERE t.school_id = ? AND t.classroom_id = ?
+          `, [school_id, req.query.classroom_id]);
+          res.json(cTable);
+          break;
+        case 'get_room_timetable':
+          const rTable = await db.all(`
+            SELECT t.*, s.code as subject_code, s.name as subject_name, c.level as classroom_level, c.name as classroom_name, r.name as room_name, te.name as teacher_name
+            FROM timetable t
+            JOIN subjects s ON t.subject_id = s.id
+            JOIN classrooms c ON t.classroom_id = c.id
+            JOIN teachers te ON t.teacher_id = te.id
+            LEFT JOIN rooms r ON t.room_id = r.id
+            WHERE t.school_id = ? AND t.room_id = ?
+          `, [school_id, req.query.room_id]);
+          res.json(rTable);
+          break;
+        case 'save_teaching_load_slots':
+          await db.run(
+            `UPDATE teaching_load SET ${req.body.type === 'fixed' ? 'fixed_slots' : 'allowed_slots'} = ? WHERE id = ? AND school_id = ?`,
+            [req.body.slots, req.body.load_id, school_id]
+          );
+          res.json({ success: true });
+          break;
+        case 'get_stats':
+          const stats = {
+            subjects: (await db.get("SELECT COUNT(*) as c FROM subjects WHERE school_id = ?", [school_id])).c,
+            teachers: (await db.get("SELECT COUNT(*) as c FROM teachers WHERE school_id = ?", [school_id])).c,
+            rooms: (await db.get("SELECT COUNT(*) as c FROM rooms WHERE school_id = ?", [school_id])).c,
+            classrooms: (await db.get("SELECT COUNT(*) as c FROM classrooms WHERE school_id = ?", [school_id])).c,
+            schools: (await db.get("SELECT COUNT(*) as c FROM schools")).c,
+            users: (await db.get("SELECT COUNT(*) as c FROM users")).c
+          };
+          res.json(stats);
+          break;
+        case 'admin_schools_list':
+          const sList = await db.all("SELECT * FROM schools ORDER BY created_at DESC");
+          res.json(sList);
+          break;
+        case 'admin_school_approve':
+          await db.run("UPDATE schools SET is_approved = 1 WHERE id = ?", [req.query.id]);
+          await db.run("UPDATE users SET is_approved = 1 WHERE school_id = ?", [req.query.id]);
+          res.json({ success: true });
+          break;
+        case 'admin_school_delete':
+          await db.run("DELETE FROM schools WHERE id = ?", [req.query.id]);
+          res.json({ success: true });
+          break;
+        case 'system_db_update':
+        case 'system_sync':
+          res.json({ success: true, message: 'ฐานข้อมูล SQLite เป็นปัจจุบันที่สุดแล้ว' });
+          break;
+        case 'auto_generate_timetable':
+          // Ported Logic from manage.php
+          await db.run("DELETE FROM timetable WHERE school_id = ?", [school_id]);
+          const loads = await db.all("SELECT * FROM teaching_load WHERE school_id = ?", [school_id]);
+          const allPs = await db.all("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC", [school_id]);
+          const normalPs = allPs.filter(p => p.type === 'normal');
+          
+          let busyT = new Set();
+          let busyC = new Set();
+          let subUsedDay = new Set();
+          let assigned = 0;
+          const days = [1, 2, 3, 4, 5];
+
+          // 1. Fixed Slots
+          for (const l of loads) {
+            const fixed = JSON.parse(l.fixed_slots || '[]');
+            for (const s of fixed) {
+              await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, s.day, s.period]);
+              busyT.add(`${s.day}-${s.period}-${l.teacher_id}`);
+              busyC.add(`${s.day}-${s.period}-${l.classroom_id}`);
+              subUsedDay.add(`${s.day}-${l.classroom_id}-${l.subject_id}`);
+              assigned++;
+            }
+            l.remaining = (l.hours_per_week || 2) - fixed.length;
+          }
+
+          // 2. Random Slots
+          const shuffleArray = (arr) => arr.slice().sort(() => Math.random() - 0.5);
+          const shuffledLoads = shuffleArray(loads);
+
+          for (const l of shuffledLoads) {
+            let h = l.remaining;
+            if (h <= 0) continue;
+
+            const allowed = JSON.parse(l.allowed_slots || '[]');
+            const isDouble = l.period_type === 'double';
+
+            let attempts = 0;
+            while (h > 0 && attempts < 10) {
+              attempts++;
+              let scheduledThisLoop = 0;
+              const sDays = shuffleArray(days);
+
+              for (const day of sDays) {
+                if (h <= 0) break;
+                if (subUsedDay.has(`${day}-${l.classroom_id}-${l.subject_id}`)) continue;
+
+                for (let i = 0; i < normalPs.length; i++) {
+                  if (h <= 0) break;
+                  const p1 = normalPs[i].period_number;
+
+                  if (allowed.length > 0 && !allowed.some(a => a.day == day && a.period == p1)) continue;
+                  if (busyT.has(`${day}-${p1}-${l.teacher_id}`) || busyC.has(`${day}-${p1}-${l.classroom_id}`)) continue;
+
+                  if (isDouble && h >= 2 && normalPs[i + 1]) {
+                    const p2 = normalPs[i + 1].period_number;
+                    if (p2 === p1 + 1 && !busyT.has(`${day}-${p2}-${l.teacher_id}`) && !busyC.has(`${day}-${p2}-${l.classroom_id}`)) {
+                      if (allowed.length > 0 && !allowed.some(a => a.day == day && a.period == p2)) continue;
+
+                      await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p1]);
+                      await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p2]);
+                      
+                      busyT.add(`${day}-${p1}-${l.teacher_id}`); busyT.add(`${day}-${p2}-${l.teacher_id}`);
+                      busyC.add(`${day}-${p1}-${l.classroom_id}`); busyC.add(`${day}-${p2}-${l.classroom_id}`);
+                      subUsedDay.add(`${day}-${l.classroom_id}-${l.subject_id}`);
+                      h -= 2; assigned += 2; scheduledThisLoop++;
+                      break;
+                    }
+                  } else if (!isDouble || h === 1) {
+                    await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                      [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p1]);
+                    busyT.add(`${day}-${p1}-${l.teacher_id}`);
+                    busyC.add(`${day}-${p1}-${l.classroom_id}`);
+                    subUsedDay.add(`${day}-${l.classroom_id}-${l.subject_id}`);
+                    h -= 1; assigned += 1; scheduledThisLoop++;
+                    break;
+                  }
+                }
+              }
+              if (scheduledThisLoop === 0) break;
+            }
+            
+            // Fallback for remaining hours
+            if (h > 0) {
+              const sDays = shuffleArray(days);
+              for (const day of sDays) {
+                if (h <= 0) break;
+                for (let i = 0; i < normalPs.length; i++) {
+                   if (h <= 0) break;
+                   const p1 = normalPs[i].period_number;
+                   if (busyT.has(`${day}-${p1}-${l.teacher_id}`) || busyC.has(`${day}-${p1}-${l.classroom_id}`)) continue;
+                   
+                   await db.run("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                      [school_id, l.teacher_id, l.subject_id, l.classroom_id, l.room_id, day, p1]);
+                   busyT.add(`${day}-${p1}-${l.teacher_id}`);
+                   busyC.add(`${day}-${p1}-${l.classroom_id}`);
+                   h -= 1; assigned += 1;
+                }
+              }
+            }
+          }
+          res.json({ success: true, count: assigned });
+          break;
+        default:
+          res.status(400).json({ error: 'Unknown action: ' + action });
+      }
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Proxy static PHP files as HTML for preview
-  const servePhpAsHtml = (filePath, req, res) => {
+  const servePhpAsHtml = (filePath: string, req: any, res: any) => {
     if (fs.existsSync(filePath)) {
         let content = fs.readFileSync(filePath, 'utf8');
-        // Simple PHP tag stripping for preview
+        
+        // Handle basic includes
+        content = content.replace(/<\?php\s+require_once\s+'(.*?)';\s+.*?\?>/g, (match, includedFile) => {
+            const fullPath = path.join(path.dirname(filePath), includedFile);
+            if (fs.existsSync(fullPath)) {
+                return fs.readFileSync(fullPath, 'utf8');
+            }
+            return `<!-- Include not found: ${includedFile} -->`;
+        });
+
+        // Simple Role Simulation (Targeting specific blocks)
+        // Assume 'admin' role for preview unless we want to toggle
+        const role = 'admin'; 
+        
+        // Handle simple if(hasRole(...))
+        content = content.replace(/<\?php\s+if\s*\(hasRole\('(.*?)'\)\):\s+\?>(.*?)<\?php\s+else:\s+\?>(.*?)<\?php\s+endif;\s+\?>/gs, (match, targetRole, ifContent, elseContent) => {
+            return role === targetRole ? ifContent : elseContent;
+        });
+        content = content.replace(/<\?php\s+if\s*\(hasRole\('(.*?)'\)\):\s+\?>(.*?)<\?php\s+endif;\s+\?>/gs, (match, targetRole, ifContent) => {
+            return role === targetRole ? ifContent : '';
+        });
+
+        // Strip remaining PHP tags
         content = content.replace(/<\?php.*?\?>/gs, '');
         content = content.replace(/<\?=.*?\?>/gs, '');
+        
         res.setHeader('Content-Type', 'text/html');
         res.send(content);
     } else {

@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
-    "start": "node dist/server.js",
+    "build": "tsc server.ts --noEmit --esModuleInterop --target esNext --module Node16 --skipLibCheck",
+    "start": "tsx server.ts",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {

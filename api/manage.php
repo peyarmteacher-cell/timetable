@@ -750,8 +750,11 @@ try {
                         }
                         if ($scheduledCountThisLoop === 0) {
                             // FALLBACK! Try again ignoring day distribution constraint
-                            foreach ($days as $day) {
+                            $fallbackDays = $days;
+                            shuffle($fallbackDays);
+                            foreach ($fallbackDays as $day) {
                                 if ($hours <= 0) break;
+                                // In fallback, we don't care if subject used today
                                 for ($i = 0; $i < count($normalPeriods); $i++) {
                                     if ($hours <= 0) break;
                                     $p1 = $normalPeriods[$i]['period_number'];
@@ -769,7 +772,8 @@ try {
                                             $hours -= 2; $assignedCount += 2; $scheduledCountThisLoop++;
                                             break;
                                         }
-                                    } else if (!$isDouble || $hours == 1) {
+                                    } else if (!$isDouble || $hours == 1 || $scheduledCountThisLoop == 0) { 
+                                        // If forced fallback, allow single even for double
                                         $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
                                         $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
                                         $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true;

@@ -712,27 +712,27 @@
         const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'];
         
         let html = `
-            <div class="overflow-x-auto rounded-[2rem] border border-slate-100 shadow-sm bg-white">
+            <div class="overflow-x-auto rounded-[2rem] border border-indigo-900 shadow-2xl bg-indigo-950">
                 <table class="w-full border-collapse min-w-[1200px]">
                     <thead>
-                        <tr class="bg-slate-50 border-b">
-                            <th class="p-6 border-r w-32 font-black text-slate-400 text-[10px] uppercase text-center bg-slate-50/80 sticky left-0 z-20 backdrop-blur-sm">วัน / คาบ</th>
+                        <tr class="bg-indigo-950 border-b border-indigo-900">
+                            <th class="p-6 border-r border-indigo-900 w-32 font-black text-indigo-300 text-[11px] uppercase text-center sticky left-0 z-20 bg-indigo-950 backdrop-blur-sm">วัน / คาบ</th>
                             ${timetablePeriods.map(p => `
-                                <th class="p-4 border-r border-slate-100 text-center ${p.type !== 'normal' ? 'bg-slate-100/50' : 'bg-slate-50/30'}">
-                                    <p class="text-[9px] font-black text-slate-400 uppercase mb-0.5 tracking-tighter">คาบ ${p.period_number}</p>
-                                    <p class="text-xs font-black text-slate-700">${p.start_time.substring(0, 5)}</p>
-                                    ${p.type !== 'normal' ? `<span class="inline-block mt-1 px-2 py-0.5 rounded-full bg-white text-[8px] font-bold text-slate-400 uppercase tracking-widest">${p.type === 'break' ? 'พัก' : 'กิจกรรม'}</span>` : ''}
+                                <th class="p-4 border-r border-indigo-900 text-center">
+                                    <p class="text-[10px] font-black text-indigo-400 uppercase mb-0.5 tracking-tighter">คาบ ${p.period_number}</p>
+                                    <p class="text-xs font-black text-white">${p.start_time.substring(0, 5)} - ${p.end_time.substring(0, 5)}</p>
+                                    ${p.type !== 'normal' ? `<span class="inline-block mt-1 px-3 py-0.5 rounded-full bg-white/10 text-[9px] font-bold text-white/40 uppercase tracking-widest">${p.type === 'break' ? 'พัก' : 'กิจกรรม'}</span>` : ''}
                                 </th>
                             `).join('')}
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="bg-white">
         `;
 
         days.forEach((dayName, dayIdx) => {
             const currentDayNumber = dayIdx + 1;
             html += `<tr class="border-b last:border-b-0 group">
-                <td class="bg-slate-50 border-r border-slate-100 p-6 font-black text-slate-700 text-center text-sm sticky left-0 z-20 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.02)] transition-colors group-hover:bg-slate-100">${dayName}</td>`;
+                <td class="bg-blue-600 border-r border-white/10 p-6 font-black text-white text-center text-sm sticky left-0 z-20 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)] transition-colors group-hover:bg-blue-700">${dayName}</td>`;
             
             timetablePeriods.forEach(p => {
                 const entry = data.find(d => d.day == currentDayNumber && d.period == p.period_number);
@@ -745,17 +745,19 @@
                     </div>`;
                 } else if (entry) {
                     const colorClasses = getColorForSubject(entry.subject_code);
+                    const teacherFirstName = entry.teacher_name ? 'ครู' + entry.teacher_name.split(' ')[0] : '-';
                     content = `
-                        <div class="${colorClasses} rounded-2xl p-2 h-full shadow-sm border transition-transform hover:scale-[1.02] cursor-default flex flex-col justify-center items-center text-center">
-                            <p class="text-xs font-black mb-0.5 uppercase tracking-wider">${entry.subject_code}</p>
-                            <p class="text-[9px] font-bold opacity-80 mb-0.5 leading-tight">${entry.classroom_level}/${entry.classroom_name}</p>
-                            <p class="text-[9px] font-bold opacity-60 leading-none">ห้อง ${entry.room_name || '-'}</p>
+                        <div class="${colorClasses} rounded-2xl p-4 h-full shadow-lg border transition-all hover:scale-[1.05] hover:z-30 cursor-default flex flex-col justify-center items-center text-center">
+                            <p class="text-sm font-black mb-1.5 uppercase tracking-wider">${entry.subject_code}</p>
+                            <p class="text-[10px] font-bold opacity-80 mb-1 leading-tight">${teacherFirstName}</p>
+                            <p class="text-[9px] font-bold opacity-60 leading-none mb-1.5">ห้อง ${entry.room_name || '-'}</p>
+                            ${state.viewType !== 'classroom' ? `<span class="text-[9px] font-black bg-black/5 px-2 py-0.5 rounded-full">${entry.classroom_level}/${entry.classroom_name}</span>` : ''}
                         </div>
                     `;
                 }
 
                 html += `
-                    <td class="border-r border-slate-50 last:border-r-0 p-2 min-w-[160px] h-[140px] align-top bg-white transition-colors group-hover:bg-slate-50/20">
+                    <td class="border-r border-slate-50 last:border-r-0 p-3 min-w-[170px] h-[150px] align-top bg-white transition-colors group-hover:bg-blue-50/10">
                         ${content}
                     </td>
                 `;
@@ -773,34 +775,44 @@
         const res = await fetch(`api/manage.php?action=get_teacher_timetable&teacher_id=${teacherId}`);
         const data = await res.json();
         
-        const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์'];
-        let html = '<div class="bg-slate-50 p-3 font-black text-[9px] text-slate-400 text-center flex items-center justify-center border-b border-r border-slate-200 uppercase tracking-widest">วัน/คาบ</div>';
+        const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'];
+        let html = `
+            <div class="bg-indigo-950 p-3 font-black text-[9px] text-indigo-300 text-center flex items-center justify-center border-b border-indigo-900 border-r uppercase tracking-tighter">วัน/เวลา</div>
+        `;
         
         timetablePeriods.forEach(p => {
-            html += `<div class="bg-slate-50 p-3 text-center text-[9px] font-black text-slate-400 border-b border-r last:border-r-0 border-slate-200 uppercase tracking-widest">คาบ ${p.period_number}</div>`;
+            html += `
+                <div class="bg-indigo-950 p-2 text-center border-b border-indigo-900 border-r last:border-r-0">
+                    <p class="text-[8px] font-black text-indigo-400 uppercase tracking-tighter">คาบ ${p.period_number}</p>
+                    <p class="text-[9px] font-black text-white">${p.start_time.substring(0, 5)}</p>
+                </div>
+            `;
         });
         
         days.forEach((dayName, dayIdx) => {
             const currentDayNumber = dayIdx + 1;
-            html += `<div class="bg-slate-50 p-3 text-center text-[10px] font-black text-slate-600 flex items-center justify-center border-b border-r border-slate-200 transition-colors hover:bg-slate-100">${dayName}</div>`;
+            html += `<div class="bg-blue-600 p-3 text-center text-[11px] font-black text-white flex items-center justify-center border-b border-white/10 border-r uppercase">${dayName}</div>`;
             timetablePeriods.forEach(p => {
                 const entry = data.find(d => d.day == currentDayNumber && d.period == p.period_number);
                 
                 let cellContent = '';
                 if (p.type === 'break' || p.type === 'activity') {
-                    cellContent = `<div class="w-full h-full bg-slate-50/50 flex items-center justify-center opacity-30 grayscale"><i data-lucide="${p.type === 'break' ? 'coffee' : 'star'}" size="10" class="text-slate-400"></i></div>`;
+                    cellContent = `<div class="w-full h-full bg-slate-50 opacity-20 flex items-center justify-center"><i data-lucide="${p.type === 'break' ? 'coffee' : 'star'}" size="10"></i></div>`;
                 } else if (entry) {
                     const colorClasses = getColorForSubject(entry.subject_code);
-                    cellContent = `<div class="${colorClasses} w-full h-full flex items-center justify-center rounded-lg border text-[10px] font-black shadow-sm">${entry.subject_code}</div>`;
+                    cellContent = `<div class="${colorClasses} w-full h-full flex flex-col items-center justify-center rounded-lg border text-[9px] font-black shadow-sm p-1">
+                        <span class="leading-none mb-0.5">${entry.subject_code}</span>
+                        <span class="text-[7px] opacity-60 leading-none">${entry.classroom_level}/${entry.classroom_name}</span>
+                    </div>`;
                 }
 
-                html += `<div class="bg-white p-1 min-h-[45px] border-b border-r last:border-r-0 border-slate-100">
+                html += `<div class="bg-white p-1 min-h-[45px] border-b border-r last:border-r-0 border-slate-100 transition-colors hover:bg-blue-50/30">
                     ${cellContent}
                 </div>`;
             });
         });
         mini.innerHTML = html;
-        mini.style.gridTemplateColumns = `80px repeat(${timetablePeriods.length}, 1fr)`;
+        mini.style.gridTemplateColumns = `100px repeat(${timetablePeriods.length}, 1fr)`;
         lucide.createIcons();
     }
 

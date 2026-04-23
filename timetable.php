@@ -131,18 +131,33 @@
         <form id="teachingLoadForm" class="p-8 space-y-6">
             <input type="hidden" name="teacher_id" id="modalTeacherId">
             
-            <div class="space-y-1.5">
-                <label class="text-sm font-bold text-slate-700">1. เลือกระดับชั้น</label>
-                <select name="classroom_id" id="classroomSelect" onchange="onClassroomChange()" class="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-600 font-bold transition-all" required>
-                    <option value="">เลือกชั้นเรียน (เช่น ป.1/1)</option>
-                </select>
-            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1.5 col-span-2">
+                    <label class="text-sm font-bold text-slate-700">1. เลือกระดับชั้น</label>
+                    <select name="classroom_id" id="classroomSelect" onchange="onClassroomChange()" class="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-600 font-bold transition-all" required>
+                        <option value="">เลือกชั้นเรียน (เช่น ป.1/1)</option>
+                    </select>
+                </div>
 
-            <div class="space-y-1.5">
-                <label class="text-sm font-bold text-slate-700">2. เลือกรายวิชา (กรองตามระดับชั้น)</label>
-                <select name="subject_id" id="subjectSelect" class="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-600 font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed" required disabled>
-                    <option value="">กรุณาเลือกชั้นเรียนก่อน</option>
-                </select>
+                <div class="space-y-1.5 col-span-2">
+                    <label class="text-sm font-bold text-slate-700">2. เลือกรายวิชา</label>
+                    <select name="subject_id" id="subjectSelect" class="w-full bg-slate-50 border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-600 font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed" required disabled>
+                        <option value="">กรุณาเลือกชั้นเรียนก่อน</option>
+                    </select>
+                </div>
+
+                <div class="space-y-1.5 pt-2">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-widest">ชั่วโมงสอนต่อสัปดาห์</label>
+                    <input type="number" name="hours_per_week" id="hoursInput" min="1" max="20" value="2" class="w-full bg-slate-100 border-none rounded-xl px-4 py-3 font-black text-blue-600 focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="space-y-1.5 pt-2">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-widest">รูปแบบคาบสอน</label>
+                    <select name="period_type" class="w-full bg-slate-100 border-none rounded-xl px-4 py-3 font-bold text-slate-700">
+                        <option value="single">คาบเดียว</option>
+                        <option value="double">คาบคู่ (2 คาบติด)</option>
+                    </select>
+                </div>
             </div>
 
             <div class="space-y-1.5">
@@ -234,24 +249,43 @@
     async function loadTeachingLoad() {
         const res = await fetch('api/manage.php?action=teaching_load_list&teacher_id=' + state.currentTeacherId);
         const data = await res.json();
+        state.teachingLoad = data; // Store in state for later use
         const table = document.getElementById('teachingLoadTable');
         
         if (data.length === 0) {
             table.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-slate-400 font-bold italic">ไม่พบวิชาที่สอน</td></tr>`;
         } else {
             table.innerHTML = data.map(item => `
-                <tr class="hover:bg-slate-50 transition-colors">
+                <tr class="hover:bg-slate-50 transition-colors group">
                     <td class="px-6 py-4 font-bold text-slate-700">${item.classroom_level}/${item.classroom_name}</td>
-                    <td class="px-6 py-4 font-medium text-slate-600">${item.subject_code} - ${item.subject_name}</td>
+                    <td class="px-6 py-4 font-medium">
+                        <span class="text-blue-600 font-bold">[${item.subject_code}]</span> ${item.subject_name}
+                        <div class="text-[10px] text-slate-400 mt-1 flex gap-2">
+                            <span class="bg-slate-100 px-2 py-0.5 rounded uppercase font-bold text-slate-500">${item.period_type === 'double' ? 'คาบคู่' : 'คาบเดียว'}</span>
+                            ${item.fixed_slots && JSON.parse(item.fixed_slots).length > 0 ? '<span class="bg-slate-900 text-white px-2 py-0.5 rounded uppercase font-bold shadow-sm">Fix แล้ว</span>' : ''}
+                            ${item.allowed_slots && JSON.parse(item.allowed_slots).length > 0 ? '<span class="bg-blue-600 text-white px-2 py-0.5 rounded uppercase font-bold shadow-sm">สุ่มจำกัดพื้นที่</span>' : ''}
+                        </div>
+                    </td>
                     <td class="px-6 py-4 text-slate-500">${item.room_name || '-'}</td>
-                    <td class="px-6 py-4 text-center font-bold text-blue-600">3</td>
+                    <td class="px-6 py-4 text-center font-black text-blue-600">${item.hours_per_week || 2}</td>
                     <td class="px-6 py-4 text-right">
-                        <button onclick="deleteLoad(${item.id})" class="text-red-300 hover:text-red-500 transition-colors"><i data-lucide="trash-2" size="18"></i></button>
+                        <div class="flex justify-end gap-2">
+                            <button onclick="openSlotSelector(${item.id}, 'fixed')" class="px-3 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all shadow-sm flex items-center gap-1 text-[10px] font-bold">
+                                <i data-lucide="lock" size="12"></i> FIX
+                            </button>
+                            <button onclick="openSlotSelector(${item.id}, 'allowed')" class="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-400 transition-all shadow-sm flex items-center gap-1 text-[10px] font-bold">
+                                <i data-lucide="shuffle" size="12"></i> สุ่ม
+                            </button>
+                            <button onclick="deleteLoad(${item.id})" class="p-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
+                                <i data-lucide="trash-2" size="16"></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `).join('');
         }
         lucide.createIcons();
+        renderMiniTimetable(state.currentTeacherId);
     }
 
     function populateClassrooms() {
@@ -305,7 +339,9 @@
             teacher_id: fd.get('teacher_id'),
             classroom_id: fd.get('classroom_id'),
             subject_id: fd.get('subject_id'),
-            room_id: fd.get('room_id') || null
+            room_id: fd.get('room_id') || null,
+            hours_per_week: fd.get('hours_per_week') || 2,
+            period_type: fd.get('period_type') || 'single'
         };
 
         if (!data.teacher_id || !data.classroom_id || !data.subject_id) {
@@ -339,6 +375,90 @@
             Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
         }
     };
+
+    let currentLoadId = null;
+    let slotSelectorType = 'fixed';
+    let selectedSlots = [];
+
+    async function openSlotSelector(loadId, type) {
+        currentLoadId = loadId;
+        slotSelectorType = type;
+        
+        const load = state.teachingLoad.find(l => l.id == loadId);
+        selectedSlots = JSON.parse((type === 'fixed' ? load.fixed_slots : load.allowed_slots) || '[]');
+        
+        const modal = document.getElementById('slotSelectorModal');
+        const title = document.getElementById('slotModalTitle');
+        const desc = document.getElementById('slotModalDesc');
+        
+        title.innerText = type === 'fixed' ? 'กำหนดคาบสอนคงที่ (Fix)' : 'สุ่มเฉพาะคาบสอนที่เลือก';
+        desc.innerText = type === 'fixed' 
+            ? 'คลิกเลือกคาบที่คุณครูต้องสอนสม่ำเสมอในทุกสัปดาห์' 
+            : 'ระบบจะสุ่มลงคาบเฉพาะในพื้นที่ที่คุณไฮไลท์สีไว้เท่านั้น';
+            
+        renderSlotGrid();
+        modal.classList.remove('hidden');
+    }
+
+    function closeSlotModal() { document.getElementById('slotSelectorModal').classList.add('hidden'); }
+
+    function renderSlotGrid() {
+        const grid = document.getElementById('slotGrid');
+        const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์'];
+        let html = '<div class="p-2"></div>';
+        
+        timetablePeriods.forEach(p => {
+            html += `<div class="bg-slate-100 p-3 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">คาบ ${p.period_number}</div>`;
+        });
+
+        days.forEach((dayName, dayIdx) => {
+            const dayNum = dayIdx + 1;
+            html += `<div class="bg-slate-50 p-2 text-center text-[12px] font-black text-slate-600 flex items-center justify-center border-r hover:bg-slate-100 transition-colors uppercase">${dayName}</div>`;
+            timetablePeriods.forEach(p => {
+                const isSelected = selectedSlots.some(s => s.day == dayNum && s.period == p.period_number);
+                const isBreak = p.type !== 'normal';
+                
+                html += `
+                    <div onclick="${isBreak ? '' : `toggleSlot(${dayNum}, ${p.period_number})`}" 
+                         class="h-16 border rounded-2xl transition-all flex items-center justify-center group overflow-hidden relative
+                         ${isBreak ? 'bg-slate-50 opacity-20 cursor-not-allowed' : (isSelected ? 'bg-blue-600 border-blue-700 shadow-lg scale-95' : 'bg-white border-slate-100 hover:border-blue-300 hover:bg-blue-50/30')}">
+                         ${isSelected ? '<i data-lucide="check-circle" class="text-white drop-shadow-md"></i>' : (isBreak ? '<i data-lucide="coffee" class="text-slate-200"></i>' : '')}
+                    </div>
+                `;
+            });
+        });
+        
+        grid.innerHTML = html;
+        grid.style.gridTemplateColumns = `80px repeat(${timetablePeriods.length}, 1fr)`;
+        document.getElementById('selectedCount').innerText = selectedSlots.length;
+        lucide.createIcons();
+    }
+
+    function toggleSlot(day, period) {
+        const idx = selectedSlots.findIndex(s => s.day == day && s.period == period);
+        if (idx > -1) selectedSlots.splice(idx, 1);
+        else selectedSlots.push({ day, period });
+        renderSlotGrid();
+    }
+
+    async function saveSelectedSlots() {
+        const fd = new FormData();
+        fd.append('load_id', currentLoadId);
+        fd.append('type', slotSelectorType);
+        fd.append('slots', JSON.stringify(selectedSlots));
+
+        try {
+            const res = await fetch('api/manage.php?action=save_teaching_load_slots', { method: 'POST', body: fd });
+            const result = await res.json();
+            if (result.success) {
+                await Swal.fire('สำเร็จ', 'บันทึกเงื่อนไขตารางสอนแล้ว', 'success');
+                closeSlotModal();
+                loadTeachingLoad();
+            }
+        } catch (e) {
+            Swal.fire('ผิดพลาด', 'ติดต่อเซิร์ฟเวอร์ไม่ได้', 'error');
+        }
+    }
 
     async function deleteLoad(id) {
         if (confirm('ลบภาระงานสอนนี้?')) {
@@ -522,12 +642,11 @@
                     </div>`;
                 } else if (entry) {
                     const colorClasses = getColorForSubject(entry.subject_code);
-                    const teacherFirstName = entry.teacher_name ? 'ครู' + entry.teacher_name.split(' ')[0] : '-';
                     content = `
-                        <div class="${colorClasses} rounded-2xl p-3 h-full shadow-sm border transition-transform hover:scale-[1.02] cursor-default flex flex-col justify-center items-center text-center">
-                            <p class="text-xs font-black mb-1 uppercase tracking-wider">${entry.subject_code}</p>
-                            <p class="text-[10px] font-bold opacity-80 mb-1 leading-tight">${teacherFirstName}</p>
-                            <p class="text-[10px] font-bold opacity-60 leading-none">ห้อง ${entry.room_name || '-'}</p>
+                        <div class="${colorClasses} rounded-2xl p-2 h-full shadow-sm border transition-transform hover:scale-[1.02] cursor-default flex flex-col justify-center items-center text-center">
+                            <p class="text-xs font-black mb-0.5 uppercase tracking-wider">${entry.subject_code}</p>
+                            <p class="text-[9px] font-bold opacity-80 mb-0.5 leading-tight">${entry.classroom_level}/${entry.classroom_name}</p>
+                            <p class="text-[9px] font-bold opacity-60 leading-none">ห้อง ${entry.room_name || '-'}</p>
                         </div>
                     `;
                 }

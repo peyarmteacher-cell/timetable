@@ -511,16 +511,36 @@ try {
                 $sql .= " AND tl.teacher_id = ?";
                 $params[] = $teacher_id;
             }
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
-            jsonResponse($stmt->fetchAll());
+            try {
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+                jsonResponse($stmt->fetchAll());
+            } catch (PDOException $e) {
+                // If columns missing, fix it
+                $pdo->exec("ALTER TABLE teaching_load ADD COLUMN hours_per_week INT DEFAULT 2");
+                $pdo->exec("ALTER TABLE teaching_load ADD COLUMN period_type VARCHAR(20) DEFAULT 'single'");
+                $pdo->exec("ALTER TABLE teaching_load ADD COLUMN fixed_slots TEXT NULL");
+                $pdo->exec("ALTER TABLE teaching_load ADD COLUMN allowed_slots TEXT NULL");
+                
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+                jsonResponse($stmt->fetchAll());
+            }
             break;
 
         case 'teaching_load_add':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
             try {
-                $stmt = $pdo->prepare("INSERT INTO teaching_load (school_id, teacher_id, subject_id, classroom_id, room_id) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$school_id, $data['teacher_id'], $data['subject_id'], $data['classroom_id'], $data['room_id']]);
+                $stmt = $pdo->prepare("INSERT INTO teaching_load (school_id, teacher_id, subject_id, classroom_id, room_id, hours_per_week, period_type) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $school_id, 
+                    $data['teacher_id'], 
+                    $data['subject_id'], 
+                    $data['classroom_id'], 
+                    $data['room_id'],
+                    $data['hours_per_week'] ?? 2,
+                    $data['period_type'] ?? 'single'
+                ]);
                 jsonResponse(['success' => true]);
             } catch (PDOException $e) {
                 if ($e->getCode() == '42S02') { // Table not found
@@ -531,11 +551,24 @@ try {
                         `subject_id` int(11) NOT NULL,
                         `classroom_id` int(11) NOT NULL,
                         `room_id` int(11) DEFAULT NULL,
+                        `hours_per_week` int(1) DEFAULT 2,
+                        `period_type` varchar(20) DEFAULT 'single',
+                        `fixed_slots` text DEFAULT NULL,
+                        `allowed_slots` text DEFAULT NULL,
                         PRIMARY KEY (`id`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
                     
-                    $stmt = $pdo->prepare("INSERT INTO teaching_load (school_id, teacher_id, subject_id, classroom_id, room_id) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->execute([$school_id, $data['teacher_id'], $data['subject_id'], $data['classroom_id'], $data['room_id']]);
+                    $stmt = $pdo->prepare("INSERT INTO teaching_load (school_id, teacher_id, subject_id, classroom_id, room_id, hours_per_week, period_type) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$school_id, $data['teacher_id'], $data['subject_id'], $data['classroom_id'], $data['room_id'], $data['hours_per_week'] ?? 2, $data['period_type'] ?? 'single']);
+                    jsonResponse(['success' => true]);
+                } else if ($e->getCode() == '42S22') { // Column missing
+                    $pdo->exec("ALTER TABLE teaching_load ADD COLUMN hours_per_week INT DEFAULT 2");
+                    $pdo->exec("ALTER TABLE teaching_load ADD COLUMN period_type VARCHAR(20) DEFAULT 'single'");
+                    $pdo->exec("ALTER TABLE teaching_load ADD COLUMN fixed_slots TEXT NULL");
+                    $pdo->exec("ALTER TABLE teaching_load ADD COLUMN allowed_slots TEXT NULL");
+                    
+                    $stmt = $pdo->prepare("INSERT INTO teaching_load (school_id, teacher_id, subject_id, classroom_id, room_id, hours_per_week, period_type) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$school_id, $data['teacher_id'], $data['subject_id'], $data['classroom_id'], $data['room_id'], $data['hours_per_week'] ?? 2, $data['period_type'] ?? 'single']);
                     jsonResponse(['success' => true]);
                 } else { throw $e; }
             }
@@ -585,113 +618,117 @@ try {
         case 'auto_generate_timetable':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
             
-            // 0. Ensure schema is ready (outside transaction to avoid implicit commits)
             try {
-                $pdo->exec("ALTER TABLE periods ADD COLUMN type VARCHAR(20) DEFAULT 'normal'");
-                $pdo->exec("ALTER TABLE subjects ADD COLUMN hours INT DEFAULT 2");
-            } catch (Exception $e) { /* Tables or columns may already exist */ }
+                // Ensure schema is updated
+                $pdo->exec("ALTER TABLE teaching_load ADD COLUMN hours_per_week INT DEFAULT 2");
+                $pdo->exec("ALTER TABLE teaching_load ADD COLUMN period_type VARCHAR(20) DEFAULT 'single'");
+                $pdo->exec("ALTER TABLE teaching_load ADD COLUMN fixed_slots TEXT NULL");
+                $pdo->exec("ALTER TABLE teaching_load ADD COLUMN allowed_slots TEXT NULL");
+            } catch (Exception $e) {}
 
             try {
                 $pdo->beginTransaction();
                 
-                // 1. Clear existing timetable for this school
-                $stmt = $pdo->prepare("DELETE FROM timetable WHERE school_id = ?");
-                $stmt->execute([$school_id]);
+                // 1. Clear existing timetable
+                $pdo->prepare("DELETE FROM timetable WHERE school_id = ?")->execute([$school_id]);
                 
                 // 2. Load teaching loads
                 $stmt = $pdo->prepare("SELECT * FROM teaching_load WHERE school_id = ?");
                 $stmt->execute([$school_id]);
                 $loads = $stmt->fetchAll();
                 
-                // 3. Load periods to know which ones are available (type='normal')
+                // 3. Load periods
                 $stmt = $pdo->prepare("SELECT * FROM periods WHERE school_id = ? ORDER BY period_number ASC");
                 $stmt->execute([$school_id]);
                 $allPeriods = $stmt->fetchAll();
+                $normalPeriods = array_values(array_filter($allPeriods, function($p) { return strtolower(trim($p['type'])) == 'normal'; }));
+                $validPeriodNums = array_map(function($p) { return (int)$p['period_number']; }, $normalPeriods);
                 
-                $availablePeriodNums = [];
-                foreach ($allPeriods as $p) {
-                    $pType = isset($p['type']) ? strtolower(trim($p['type'])) : 'normal';
-                    if ($pType == 'normal' || $pType == '') {
-                        $availablePeriodNums[] = $p['period_number'];
-                    }
-                }
-                
-                if (empty($availablePeriodNums)) {
-                    throw new Exception("ยังไม่ได้ตั้งค่าช่วงเวลาปกติ (Normal) ในเมนูตั้งค่าพื้นฐาน");
-                }
+                $busyTeachers = []; $busyClassrooms = []; $subjectUsedToday = [];
+                $assignedCount = 0; $days = [1, 2, 3, 4, 5];
 
-                $assignedCount = 0;
-                $days = [1, 2, 3, 4, 5]; // Mon-Fri
-                
-                // Keep track of busy slots
-                $busyTeachers = [];   // [day][period][teacher_id]
-                $busyClassrooms = []; // [day][period][classroom_id]
-                $subjectUsedToday = []; // [day][classroom_id][subject_id] - To prevent same subject on same day
-                
-                // Simple Greedy Algorithm with Day Distribution
-                foreach ($loads as $load) {
-                    $stmtSubject = $pdo->prepare("SELECT hours FROM subjects WHERE id = ?");
-                    $stmtSubject->execute([$load['subject_id']]);
-                    $subject = $stmtSubject->fetch();
-                    $hoursToSchedule = $subject ? (int)$subject['hours'] : 2;
-
-                    for ($h = 0; $h < $hoursToSchedule; $h++) {
-                        $scheduled = false;
+                // STEP 1: Process Fixed Slots First
+                foreach ($loads as &$load) {
+                    $fixed = json_decode($load['fixed_slots'] ?? '[]', true);
+                    foreach ($fixed as $slot) {
+                        $day = $slot['day']; $period = $slot['period'];
+                        $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $period]);
                         
-                        // Try to find a slot, prioritizing different days for each hour
-                        foreach ($days as $day) {
-                            $scKey = "{$day}-{$load['classroom_id']}-{$load['subject_id']}";
-                            
-                            // Skip this day if subject already assigned today (unless we have no other choice)
-                            // But usually for 5 hrs/week, distributing 1 per day is best
-                            if (isset($subjectUsedToday[$scKey])) continue;
+                        $busyTeachers["$day-$period-{$load['teacher_id']}"] = true;
+                        $busyClassrooms["$day-$period-{$load['classroom_id']}"] = true;
+                        $subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"] = true;
+                        $assignedCount++;
+                        // Reduce remaining hours to schedule
+                        $load['remaining_hours'] = ($load['hours_per_week'] ?: 2) - count($fixed);
+                    }
+                    if (!isset($load['remaining_hours'])) $load['remaining_hours'] = $load['hours_per_week'] ?: 2;
+                }
 
-                            foreach ($availablePeriodNums as $period) {
-                                $teacherKey = "{$day}-{$period}-{$load['teacher_id']}";
-                                $classroomKey = "{$day}-{$period}-{$load['classroom_id']}";
+                // STEP 2: Process Auto-Scaling (Randomized/Priority Slots)
+                foreach ($loads as $load) {
+                    $hours = $load['remaining_hours'];
+                    if ($hours <= 0) continue;
+
+                    $allowed = json_decode($load['allowed_slots'] ?? '[]', true);
+                    $isDouble = ($load['period_type'] === 'double');
+
+                    while ($hours > 0) {
+                        $scheduledCountThisLoop = 0;
+                        foreach ($days as $day) {
+                            if ($hours <= 0) break;
+                            if (isset($subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"])) continue;
+
+                            // Find available periods for this day
+                            for ($i = 0; $i < count($normalPeriods); $i++) {
+                                if ($hours <= 0) break;
+                                $p1 = $normalPeriods[$i]['period_number'];
                                 
-                                if (!isset($busyTeachers[$teacherKey]) && !isset($busyClassrooms[$classroomKey])) {
+                                // Constraints check
+                                if (!empty($allowed)) {
+                                    $isAllowed = false;
+                                    foreach($allowed as $as) if($as['day'] == $day && $as['period'] == $p1) $isAllowed = true;
+                                    if (!$isAllowed) continue;
+                                }
+
+                                if (isset($busyTeachers["$day-$p1-{$load['teacher_id']}"]) || isset($busyClassrooms["$day-$p1-{$load['classroom_id']}"])) continue;
+
+                                if ($isDouble && $hours >= 2 && isset($normalPeriods[$i+1])) {
+                                    $p2 = $normalPeriods[$i+1]['period_number'];
+                                    // Check if p2 is consecutive and not busy
+                                    if ($p2 == $p1 + 1 && !isset($busyTeachers["$day-$p2-{$load['teacher_id']}"]) && !isset($busyClassrooms["$day-$p2-{$load['classroom_id']}"])) {
+                                        // CHECK: Is p2 also allowed if allowed_slots exist?
+                                        if (!empty($allowed)) {
+                                            $p2Allowed = false;
+                                            foreach($allowed as $as) if($as['day'] == $day && $as['period'] == $p2) $p2Allowed = true;
+                                            if (!$p2Allowed) continue;
+                                        }
+
+                                        // INSERT DOUBLE!
+                                        $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
+                                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p2]);
+                                        
+                                        $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true; $busyTeachers["$day-$p2-{$load['teacher_id']}"] = true;
+                                        $busyClassrooms["$day-$p1-{$load['classroom_id']}"] = true; $busyClassrooms["$day-$p2-{$load['classroom_id']}"] = true;
+                                        $subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"] = true;
+                                        $hours -= 2; $assignedCount += 2; $scheduledCountThisLoop++;
+                                        break;
+                                    }
+                                } else if (!$isDouble || $hours == 1) {
+                                    // INSERT SINGLE!
                                     $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                                    $stmt->execute([
-                                        $school_id, 
-                                        $load['teacher_id'], 
-                                        $load['subject_id'], 
-                                        $load['classroom_id'], 
-                                        $load['room_id'], 
-                                        $day, 
-                                        $period
-                                    ]);
+                                    $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $p1]);
                                     
-                                    $busyTeachers[$teacherKey] = true;
-                                    $busyClassrooms[$classroomKey] = true;
-                                    $subjectUsedToday[$scKey] = true;
-                                    $assignedCount++;
-                                    $scheduled = true;
+                                    $busyTeachers["$day-$p1-{$load['teacher_id']}"] = true;
+                                    $busyClassrooms["$day-$p1-{$load['classroom_id']}"] = true;
+                                    $subjectUsedToday["$day-{$load['classroom_id']}-{$load['subject_id']}"] = true;
+                                    $hours -= 1; $assignedCount += 1; $scheduledCountThisLoop++;
                                     break;
                                 }
                             }
-                            if ($scheduled) break;
                         }
-                        
-                        // If still not scheduled (maybe all days have this subject), try again without subjectUsedToday check
-                        if (!$scheduled) {
-                            foreach ($days as $day) {
-                                foreach ($availablePeriodNums as $period) {
-                                    $teacherKey = "{$day}-{$period}-{$load['teacher_id']}";
-                                    $classroomKey = "{$day}-{$period}-{$load['classroom_id']}";
-                                    if (!isset($busyTeachers[$teacherKey]) && !isset($busyClassrooms[$classroomKey])) {
-                                        $stmt = $pdo->prepare("INSERT INTO timetable (school_id, teacher_id, subject_id, classroom_id, room_id, day, period) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                                        $stmt->execute([$school_id, $load['teacher_id'], $load['subject_id'], $load['classroom_id'], $load['room_id'], $day, $period]);
-                                        $busyTeachers[$teacherKey] = true;
-                                        $busyClassrooms[$classroomKey] = true;
-                                        $assignedCount++;
-                                        $scheduled = true;
-                                        break;
-                                    }
-                                }
-                                if ($scheduled) break;
-                            }
-                        }
+                        if ($scheduledCountThisLoop === 0) break; // Could not schedule more
                     }
                 }
                 
@@ -701,6 +738,19 @@ try {
                 if ($pdo->inTransaction()) $pdo->rollBack();
                 jsonResponse(['error' => $e->getMessage()], 500);
             }
+            break;
+
+        case 'save_teaching_load_slots':
+            $load_id = $_POST['load_id'] ?? null;
+            $type = $_POST['type'] ?? 'fixed'; // 'fixed' or 'allowed'
+            $slots = $_POST['slots'] ?? '[]';
+            
+            if (!$load_id) jsonResponse(['error' => 'Missing ID'], 400);
+            
+            $column = ($type === 'fixed') ? 'fixed_slots' : 'allowed_slots';
+            $stmt = $pdo->prepare("UPDATE teaching_load SET $column = ? WHERE id = ? AND school_id = ?");
+            $stmt->execute([$slots, $load_id, $school_id]);
+            jsonResponse(['success' => true]);
             break;
 
         default:

@@ -615,6 +615,19 @@ try {
             jsonResponse($stmt->fetchAll());
             break;
 
+        case 'get_teacher_timetable':
+            if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
+            $teacher_id = $_GET['teacher_id'];
+            $stmt = $pdo->prepare("SELECT t.*, s.name as subject_name, s.code as subject_code, c.level as classroom_level, c.name as classroom_name, r.name as room_name 
+                                    FROM timetable t
+                                    JOIN subjects s ON t.subject_id = s.id
+                                    JOIN classrooms c ON t.classroom_id = c.id
+                                    LEFT JOIN rooms r ON t.room_id = r.id
+                                    WHERE t.teacher_id = ? AND t.school_id = ?");
+            $stmt->execute([$teacher_id, $school_id]);
+            jsonResponse($stmt->fetchAll());
+            break;
+
         case 'auto_generate_timetable':
             if (!$school_id) jsonResponse(['error' => 'No school associated'], 400);
             

@@ -174,6 +174,55 @@
     </div>
 </div>
 
+<!-- Slot Selector Modal -->
+<div id="slotSelectorModal" class="fixed inset-0 bg-indigo-950/80 backdrop-blur-md z-[110] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-[3rem] w-full max-w-7xl h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-white/20">
+        <!-- Modal Header -->
+        <div class="bg-indigo-950 p-8 flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-6">
+                <div class="w-16 h-16 rounded-3xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/30">
+                    <i data-lucide="calendar-check" size="32"></i>
+                </div>
+                <div>
+                    <h2 id="slotModalTitle" class="text-3xl font-black text-white leading-none mb-2">กำหนดเงื่อนไขตาราง</h2>
+                    <p id="slotModalDesc" class="text-indigo-300 font-bold text-sm tracking-wide">จัดการพื้นที่และคาบเวลาที่ต้องการล็อกข้อมูล</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="bg-white/10 px-6 py-3 rounded-2xl border border-white/10 flex items-center gap-4">
+                    <span class="text-white/40 font-bold text-[10px] uppercase tracking-widest">เลือกแล้ว</span>
+                    <span id="selectedCount" class="text-white text-2xl font-black">0</span>
+                    <span class="text-white/40 font-bold text-[10px] uppercase tracking-widest">คาบ</span>
+                </div>
+                <button onclick="closeSlotModal()" class="w-12 h-12 rounded-full bg-white/10 text-white hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center border border-white/10">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal Content -->
+        <div class="flex-1 overflow-auto bg-slate-50">
+            <div id="slotGrid" class="grid p-8 gap-px bg-slate-200">
+                <!-- Dynamic Grid -->
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-8 border-t bg-white flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-3 text-slate-400">
+                <i data-lucide="info" size="18"></i>
+                <p class="text-sm font-medium">การล็อกคาบ (FIX) จะทำให้ระบบจัดวิชานี้ลงในคาบที่คุณเลือกเสมอ</p>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="closeSlotModal()" class="px-8 py-4 rounded-2xl font-black text-slate-500 hover:bg-slate-100 transition-all uppercase tracking-widest text-sm">ยกเลิก</button>
+                <button onclick="saveSelectedSlots()" class="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center gap-3 uppercase tracking-widest">
+                    <i data-lucide="save"></i> บันทึกเงื่อนไข
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     lucide.createIcons();
     
@@ -376,9 +425,11 @@
         }
     };
 
+    // SLOT SELECTOR LOGIC
     let currentLoadId = null;
     let slotSelectorType = 'fixed';
     let selectedSlots = [];
+    let teacherFullTimetable = [];
 
     async function openSlotSelector(loadId, type) {
         currentLoadId = loadId;
@@ -387,51 +438,99 @@
         const load = state.teachingLoad.find(l => l.id == loadId);
         selectedSlots = JSON.parse((type === 'fixed' ? load.fixed_slots : load.allowed_slots) || '[]');
         
+        // Fetch current teacher's full timetable for context
+        const res = await fetch(`api/manage.php?action=get_teacher_timetable&teacher_id=${state.currentTeacherId}`);
+        teacherFullTimetable = await res.json();
+
         const modal = document.getElementById('slotSelectorModal');
         const title = document.getElementById('slotModalTitle');
         const desc = document.getElementById('slotModalDesc');
         
-        title.innerText = type === 'fixed' ? 'กำหนดคาบสอนคงที่ (Fix)' : 'สุ่มเฉพาะคาบสอนที่เลือก';
+        title.innerText = type === 'fixed' ? 'ระบุคาบสอนคงที่ (Fixed Slots)' : 'กำหนดพื้นที่สุ่ม (Allowed Area)';
         desc.innerText = type === 'fixed' 
-            ? 'คลิกเลือกคาบที่คุณครูต้องสอนสม่ำเสมอในทุกสัปดาห์' 
-            : 'ระบบจะสุ่มลงคาบเฉพาะในพื้นที่ที่คุณไฮไลท์สีไว้เท่านั้น';
+            ? 'เลือกคาบที่ต้องการให้ระบบล็อกไว้ถาวร (สีส้ม)' 
+            : 'ระบบจะสุ่มลงวิชานี้เฉพาะในคาบที่คุณระบุไว้เท่านั้น';
             
         renderSlotGrid();
         modal.classList.remove('hidden');
     }
 
-    function closeSlotModal() { document.getElementById('slotSelectorModal').classList.add('hidden'); }
-
     function renderSlotGrid() {
         const grid = document.getElementById('slotGrid');
-        const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์'];
-        let html = '<div class="p-2"></div>';
+        const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์'];
+        const currentLoad = state.teachingLoad.find(l => l.id == currentLoadId);
+        
+        let html = `
+            <div class="bg-indigo-950 p-4 font-black text-[10px] text-indigo-300 text-center flex items-center justify-center border-b border-indigo-900 border-r uppercase tracking-tighter">วัน/เวลา</div>
+        `;
         
         timetablePeriods.forEach(p => {
-            html += `<div class="bg-slate-100 p-3 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">คาบ ${p.period_number}</div>`;
+            html += `
+                <div class="bg-indigo-950 p-3 text-center border-b border-indigo-900 border-r last:border-r-0">
+                    <p class="text-[9px] font-black text-indigo-400 uppercase tracking-tighter">คาบ ${p.period_number}</p>
+                    <p class="text-[10px] font-black text-white">${p.start_time.substring(0, 5)}-${p.end_time.substring(0, 5)}</p>
+                </div>
+            `;
         });
 
         days.forEach((dayName, dayIdx) => {
             const dayNum = dayIdx + 1;
-            html += `<div class="bg-slate-50 p-2 text-center text-[12px] font-black text-slate-600 flex items-center justify-center border-r hover:bg-slate-100 transition-colors uppercase">${dayName}</div>`;
+            html += `<div class="bg-blue-600 p-4 text-center text-[13px] font-black text-white flex items-center justify-center border-b border-white/10 border-r uppercase">${dayName}</div>`;
+            
             timetablePeriods.forEach(p => {
                 const isSelected = selectedSlots.some(s => s.day == dayNum && s.period == p.period_number);
                 const isBreak = p.type !== 'normal';
                 
+                // Find if there's already something scheduled here for THIS teacher
+                const existing = teacherFullTimetable.find(t => t.day == dayNum && t.period == p.period_number);
+                
+                let cellClass = "border-b border-r last:border-r-0 border-slate-100 min-h-[90px] relative transition-all group cursor-pointer";
+                let innerContent = "";
+
+                if (isBreak) {
+                    cellClass += " bg-slate-50/50 cursor-not-allowed";
+                    innerContent = `<div class="absolute inset-0 flex items-center justify-center opacity-20"><i data-lucide="coffee" size="14"></i></div>`;
+                } else if (isSelected) {
+                    cellClass += " bg-orange-100 ring-2 ring-orange-500 ring-inset z-10 scale-[0.98]";
+                    innerContent = `
+                        <div class="p-2 h-full flex flex-col items-center justify-center text-center">
+                            <p class="text-[11px] font-black text-orange-700 leading-tight">${currentLoad.subject_code}</p>
+                            <p class="text-[9px] font-bold text-orange-600/80 leading-tight">${currentLoad.classroom_level}/${currentLoad.classroom_name}</p>
+                            <p class="text-[9px] font-bold text-orange-500/60 leading-none mt-1">
+                                <i data-lucide="map-pin" size="8" class="inline"></i> ${currentLoad.room_name || '-'}
+                            </p>
+                            <div class="absolute top-1 right-1"><i data-lucide="check-circle-2" size="10" class="text-orange-500"></i></div>
+                        </div>
+                    `;
+                } else if (existing) {
+                    cellClass += " bg-blue-50/30 opacity-40 grayscale";
+                    innerContent = `
+                        <div class="p-2 h-full flex flex-col items-center justify-center text-center">
+                            <p class="text-[10px] font-black text-blue-900 leading-tight">${existing.subject_code}</p>
+                            <p class="text-[8px] font-bold text-blue-700/60">${existing.classroom_level}/${existing.classroom_name}</p>
+                        </div>
+                    `;
+                } else {
+                    cellClass += " bg-white hover:bg-blue-50/50";
+                    innerContent = `<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><i data-lucide="plus" size="14" class="text-blue-300"></i></div>`;
+                }
+
                 html += `
-                    <div onclick="${isBreak ? '' : `toggleSlot(${dayNum}, ${p.period_number})`}" 
-                         class="h-16 border rounded-2xl transition-all flex items-center justify-center group overflow-hidden relative
-                         ${isBreak ? 'bg-slate-50 opacity-20 cursor-not-allowed' : (isSelected ? 'bg-blue-600 border-blue-700 shadow-lg scale-95' : 'bg-white border-slate-100 hover:border-blue-300 hover:bg-blue-50/30')}">
-                         ${isSelected ? '<i data-lucide="check-circle" class="text-white drop-shadow-md"></i>' : (isBreak ? '<i data-lucide="coffee" class="text-slate-200"></i>' : '')}
+                    <div onclick="${isBreak ? '' : `toggleSlot(${dayNum}, ${p.period_number})`}" class="${cellClass}">
+                        ${innerContent}
                     </div>
                 `;
             });
         });
         
         grid.innerHTML = html;
-        grid.style.gridTemplateColumns = `80px repeat(${timetablePeriods.length}, 1fr)`;
+        grid.style.gridTemplateColumns = `120px repeat(${timetablePeriods.length}, 1fr)`;
         document.getElementById('selectedCount').innerText = selectedSlots.length;
         lucide.createIcons();
+    }
+
+    function closeSlotModal() { 
+        document.getElementById('slotSelectorModal').classList.add('hidden'); 
     }
 
     function toggleSlot(day, period) {
@@ -521,15 +620,19 @@
     function toggleMainSidebar() {
         const sidebar = document.querySelector('aside.w-64') || document.querySelector('nav + aside') || document.querySelector('aside');
         const content = document.querySelector('.flex-1.flex.flex-col');
+        const icon = document.getElementById('mainSidebarIcon');
         
         if (sidebar) {
-            sidebar.classList.toggle('hidden');
-            if (sidebar.classList.contains('hidden')) {
+            const isHidden = sidebar.classList.toggle('hidden');
+            if (isHidden) {
                 content.classList.remove('h-screen');
                 content.classList.add('min-h-screen', 'w-full');
+                if (icon) icon.setAttribute('data-lucide', 'panel-left-open');
             } else {
                 content.classList.add('h-screen');
+                if (icon) icon.setAttribute('data-lucide', 'panel-left-close');
             }
+            lucide.createIcons();
         }
     }
 
